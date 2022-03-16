@@ -1,0 +1,11 @@
+*.png
+__pycache__
+*.pickle
+*.npy
+tmp
+tsne_plots/
+tensorboard*
+logs/
+autoencoder_bayer/generated-data
+autoencoder_bayer/runs
+autoencoder_bayer/data/GazeBase

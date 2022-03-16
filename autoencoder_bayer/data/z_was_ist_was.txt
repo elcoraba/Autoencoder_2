@@ -1,0 +1,7 @@
+MAE				Bayer
+
+__init__			__init__
+corpora				datasets
+corpus				corpusData
+data				data
+utils				utilsData

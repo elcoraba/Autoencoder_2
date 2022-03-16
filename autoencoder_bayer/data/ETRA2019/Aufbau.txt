@@ -1,0 +1,18 @@
+Subject identifier.
+Task (Fixation or free viewing).
+Visual scene type (Blank, Natural, Picture puzzle, Where's Waldo).
+Visual scene image file.
+45 s of binocular ere movement data.
+For Picture puzzle and where's Waldo trials the locations of the clicks where subjects indicated differences or Waldo characters.
+
+DataSummary:
+Subject,TrialNumber,Task,Stimulus,Image,ClickH_1,ClickH_2,ClickH_3,ClickH_4,ClickH_5,ClickH_6,ClickH_7,ClickH_8,ClickH_9,ClickH_10,ClickH_11,ClickV_1,ClickV_2,ClickV_3,ClickV_4,ClickV_5,ClickV_6,ClickV_7,ClickV_8,ClickV_9,ClickV_10,ClickV_11
+9,1,FreeViewing,Puzzle,PUZZLE\puz013.bmp,484,411,297,292,143,276,464,NaN,NaN,NaN,NaN,484,411,297,292,143,276,464,NaN,NaN,NaN,NaN
+....
+
+Data/subject:
+Time,LXpix,LYpix,RXpix,RYpix,LXhref,LYhref,RXhref,RYhref,LP,RP
+326058,475.06,259.275,510.58,245.4,-123,1830,234,1639,1054,1082
+326060,472.1,244.05,506.58,232.35,-120,1833,228,1666,1053,1085
+326062,472.18,245.85,508.34,229.2,-117,1853,242,1629,1060,1079
+...
