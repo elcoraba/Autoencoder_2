@@ -6,7 +6,7 @@ CORPUS_LIST = {
     'EMVIC2014': EMVIC2014,
     'Cerf2007-FIFA': Cerf2007_FIFA,
     'ETRA2019': ETRA2019,
-    'MIT-LowRes': MIT_LowRes,
+    #'MIT-LowRes': MIT_LowRes,
 }
 
 
@@ -14,14 +14,15 @@ frequencies = {
     1000: ['EMVIC2014', 'Cerf2007-FIFA'],
     500: ['ETRA2019'],
     # the ones from MIT are 240Hz but oh well
-    250: ['MIT-LowRes'],
+    #250: ['MIT-LowRes'],
 }
 
 def get_corpora(args, additional_corpus=None):
     corpora = []
     for f, c in frequencies.items():
-        if args.hz <= f:
-            corpora.extend(c)
+        #if args.hz <= f:
+        #    corpora.extend(c)
+        corpora.extend(c)
 
     # corpora = list(CORPUS_LIST.keys())
 

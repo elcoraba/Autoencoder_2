@@ -136,14 +136,14 @@ class EMVIC2014(EyeTrackingCorpus):
     def __init__(self, args):
         self.w, self.h = (None, None)
         self.hz = 1000
-        self.root = 'EMVIC2014/official_files/'
+        self.root = 'EMVIC2014/' #/official_files/
         self.stim_dir = None
 
         super(EMVIC2014, self).__init__(args)
 
     def extract(self):
         data = []
-        for split in ['train', 'testSolved']:
+        for split in ['train', 'test']: #testSolved
             with open(self.root + split + '.csv', 'r') as f:
                 trials = [t.split(',') for t in f.read().split('\n')]
 

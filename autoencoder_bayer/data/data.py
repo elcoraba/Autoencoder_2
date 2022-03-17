@@ -58,7 +58,7 @@ class SignalDataset(Dataset):
 
             if self.split_to_val:
                 train, val = train_test_split(
-                    corpus_samples, test_size=50, random_state=RAND_SEED)
+                    corpus_samples, test_size = 0.2, random_state=RAND_SEED)#test_size=50
             else:
                 train, val = corpus_samples, []
 

@@ -61,7 +61,7 @@ class AgeGroupBinary():
 
         data = data[data.corpus == 'Cerf2007-FIFA']
         subjects = io.loadmat(
-            '../data/Cerf2007-FIFA/general', squeeze_me=True)['subject']
+            'data/Cerf2007-FIFA/general', squeeze_me=True)['subject']
         ages = {s[4]: s[2] for s in subjects}
         return data.z, data['subj'].apply(lambda x: bin(x))
 
@@ -70,7 +70,7 @@ class GenderBinary():
     def get_xy(self, data):
         data = data[data.corpus == 'Cerf2007-FIFA']
         subjects = io.loadmat(
-            '../data/Cerf2007-FIFA/general', squeeze_me=True)['subject']
+            'data/Cerf2007-FIFA/general', squeeze_me=True)['subject']
         legend = {1: 'male', 0: 'female'}
         subj_sexes = {s[4]: legend[s[0]] for s in subjects}
         return data.z, data['subj'].apply(lambda x: subj_sexes[x])

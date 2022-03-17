@@ -25,13 +25,18 @@ DECODER_PARAMS = [DECODER_KERNEL_SIZE, DECODER_FILTERS, DECODER_DILATIONS,
 # data settings
 MAX_X_RESOLUTION = 1280
 MAX_Y_RESOLUTION = 1024
-DATA_ROOT = '../data/'
-GENERATED_DATA_ROOT = '../generated-data/'
+DATA_ROOT = 'data/' #../
+GENERATED_DATA_ROOT = 'generated-data/'
 
 SLICE_OVERLAP_RATIO = 0.2
 
 PX_PER_DVA = 35  # pixels per degree of visual angle
 RAND_SEED = 123
+
+#-B----
+TRAIN_NUM_EPOCHS = 1000
+TRAIN_SAVE_LOSS_EVERY_X_BATCHES = 100
+#-B----
 
 
 def print_settings():
@@ -62,28 +67,28 @@ def get_parser():
     parser.add_argument("-v", "--verbose", default=False,
                         action="store_true")
     parser.add_argument("-ae", "--autoencoder", default="temporal", type=str)
-    parser.add_argument("--save-model", default=False, action="store_true")
-    parser.add_argument("--tensorboard", default=False, action="store_true")
+    parser.add_argument("--save-model", default=True, action="store_true")             #----
+    parser.add_argument("--tensorboard", default=True, action="store_true")            #----
     # Encoder Settings
     parser.add_argument("--encoder", default='vanilla_tcn')
     parser.add_argument("--multiscale", default=False, action="store_true")
     parser.add_argument("--causal-encoder", default=False, action="store_true")
-    parser.add_argument("--hierarchical", default=False, action="store_true")
+    parser.add_argument("--hierarchical", default=True, action="store_true")           #----
     # Data Settings
     parser.add_argument("-hz", default=0, type=int)
     parser.add_argument("-vt", "--viewing-time",
                         help="Cut raw gaze samples to this value (seconds)",
-                        default=-1, type=float)
+                        default=2, type=float)                                         #---- -1
     parser.add_argument("--signal-type", default='pos', type=str,
                         help="'pos' or 'vel'")
-    parser.add_argument("--slice-time-windows", default=None, type=str,
+    parser.add_argument("--slice-time-windows", default="2s-overlap", type=str,        #---- was None
                         help="'2s-overlap' or '2s-disjoint'")
     parser.add_argument("--augment", default=False, action="store_true")
     # Training Settings
     parser.add_argument("--loss-type", default='', type=str,
                         help="supervised or none")
-    parser.add_argument("--use-validation-set", default=False, action="store_true")
-    parser.add_argument("--cuda", default=True, type=bool)
+    parser.add_argument("--use-validation-set", default=True, action="store_true")      #----
+    parser.add_argument("--cuda", default=True, type=bool)                             #----
     parser.add_argument("--rec-loss", default='mse', type=str,
                         help="mse or bce")
     parser.add_argument("-bs", "--batch-size", default=64, type=int)

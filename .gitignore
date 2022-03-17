@@ -6,6 +6,8 @@ tmp
 tsne_plots/
 tensorboard*
 logs/
-autoencoder_bayer/generated-data
+autoencoder_bayer/generated-data/*
 autoencoder_bayer/runs
 autoencoder_bayer/data/GazeBase
+autoencoder_bayer/runs_accuracy
+models/*

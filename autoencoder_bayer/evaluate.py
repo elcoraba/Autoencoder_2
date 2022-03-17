@@ -29,7 +29,7 @@ class RepresentationEvaluator:
     def __init__(self, tasks, classifiers='all', args=None, **kwargs):
         logging.info('\n---------- Initializing evaluator ----------')
 
-        self.save_tsne_plot = args.save_tsne_plot
+        #self.save_tsne_plot = args.save_tsne_plot
         self.scatterplot_dims = 2
         self.slice_time_windows = args.slice_time_windows
         self.viewing_time = kwargs.get('viewing_time') or args.viewing_time
@@ -67,7 +67,7 @@ class RepresentationEvaluator:
             self.feature_type_idxs = self._build_representation_index_ranges()
             self.fi_df = pd.DataFrame()
             self.dataset = self.init_dataset(args)
-
+        '''
         # evaluate using PCA features on raw data
         elif args.pca_components > 0:
             self.pca_components = args.pca_components
@@ -82,14 +82,14 @@ class RepresentationEvaluator:
             self.representation_name = kwargs['representation_name']
             self.signal_types = kwargs['signal_types']
             self.dataset = self.init_dataset(args)
-
+        '''
         # will store each corpus' info into a unified self.df.
         # this will hold each trial's representation
         self.df = pd.DataFrame(columns=['corpus', 'subj', 'stim', 'task'])
-
-        self.tensorboard = (SummaryWriter(
-            'tensorboard_evals/{}'.format(self.representation_name))
-            if args.tensorboard else None)
+        self.tensorboard = None
+        #self.tensorboard = (SummaryWriter(
+        #    'tensorboard_evals/{}'.format(self.representation_name))
+        #    if args.tensorboard else None)
 
         self.consolidate_corpora()
 
@@ -215,7 +215,7 @@ class RepresentationEvaluator:
                     batch = Tensor(x[s]).T.unsqueeze(0)
                 else:
                     batch = Tensor(x[batch_size * s: batch_size * (s + 1)])
-                reps.extend(network.encode(batch.cuda()
+                reps.extend(network.encode(batch                                        #batch.cuda()
                                            )[0].cpu().detach().numpy())
         return reps
 
@@ -309,7 +309,7 @@ class RepresentationEvaluator:
                 return
             self.tensorboard.add_figure(title, fig, global_step=e)
             logging.info('{} scatterplot saved to tensorboard'.format(method))
-
+        '''
         if self.save_tsne_plot:
             z_values = StandardScaler().fit_transform(np.stack(x))
             df = pd.DataFrame(TSNE(self.scatterplot_dims,
@@ -318,7 +318,7 @@ class RepresentationEvaluator:
                                    n_jobs=3).fit_transform(z_values))
             df['label'] = list(y)
             add_figure(df, 'tSNE', '-p{}-lr{}'.format(30, 500))
-
+        '''
     def _log_feature_importances(self, task, grid_cv, top_n_percent=0.2):
         if len(self.feature_type_idxs) < 2:
             return
@@ -378,7 +378,7 @@ class RepresentationEvaluator:
             dummy_pipeline, np.stack(x), y, cv=5, scoring=self.scorers)
         logging.info('Chance Mean Acc: {:.2f}'.format(
             np.mean(dummy_scores['test_accuracy'])))
-
+    '''
     def _log_z_stats(self, e):
         def log(stat, values):
             logging.info('[{} of latent space dims] Total mean: {:.2f}. Values:\n{}'.format(
@@ -398,7 +398,7 @@ class RepresentationEvaluator:
                 global_step=e)
             self.tensorboard.add_scalar('Z_Mean_of_StDevs', z_std.mean(), e)
             logging.info('Stat of Z dimensions added to Tensorboard.')
-
+    '''
 
 if __name__ == '__main__':
     run_identifier = 'eval_' + datetime.now().strftime('%m%d-%H%M')

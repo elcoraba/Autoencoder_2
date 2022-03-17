@@ -11,14 +11,14 @@ import matplotlib.pyplot as plt
 sns.set(style='darkgrid', font_scale=0.8)
 
 
-def visualize_reconstruction(target, output, filename, loss_func,
-                             title='', savefig=False):
-    save_dir = '../generated-data/comparisons/{}.jpg'.format(filename)
+def visualize_reconstruction(target, output, filename,
+                             title='', savefig=False, folder_name = 'train'):
+    save_dir = 'generated-data/comparisons/{}.jpg'.format(filename)
     target = target.squeeze()
     output = output.detach().squeeze()
 
-    if 'bce' in loss_func:
-        output = torch.sigmoid(output)
+    #if 'bce' in loss_func:
+    #    output = torch.sigmoid(output)
 
     line_params = {'alpha': 0.8, 'linewidth': 1}
     viz = plt.figure(figsize=(7, 5))
@@ -41,8 +41,8 @@ def visualize_reconstruction(target, output, filename, loss_func,
 
     plt.tight_layout()
     if savefig:
-        if not path.exists('../generated-data/comparisons/'):
-            mkdir('../generated-data/comparisons/')
+        if not path.exists('generated-data/comparisons/'):
+            mkdir('generated-data/comparisons/')
         plt.savefig(save_dir, quality=80)
         plt.close()  # is handled by tensorboard add_figure()?
         return None
@@ -105,7 +105,7 @@ def plot_scatter(df, savefig_title=None):
 
     plt.tight_layout()
     if savefig_title:
-        f = '../generated-data/evals/figures/' + savefig_title
+        f = 'generated-data/evals/figures/' + savefig_title
         plt.savefig(f, quality=100)
         logging.info('scatterplot saved to {}'.format(f))
         # logging.info('savefig not implemented! Need to pass on filename!')

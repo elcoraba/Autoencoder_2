@@ -1,9 +1,11 @@
 import logging
-
 import torch
 
 from .autoencoder import TCNAutoencoder
 from .supervised import SupervisedTCN
+
+import json
+from datetime import datetime, date
 
 
 class ModelManager:
@@ -13,23 +15,20 @@ class ModelManager:
 
     def load_network(self, args, **kwargs):
         if args.model_pos or args.model_vel:
+            print('Load network')
             if self.is_training:
-                self.network, self.optim = self._load_pretrained_model(
-                    args.model_pos or args.model_vel)
+                self.network, self.optim = self._load_pretrained_model(args.model_pos or args.model_vel)
             else:
                 self.network = {}
                 vel_net = self._load_pretrained_model(args.model_vel)
                 if vel_net:
-                    self.network['vel'] = vel_net.eval()
+                    self.network['vel'] = vel_net.eval() # packe key in dict, was netzwerk enthält, netzwerk in eval modus versetzen (sind nicht im traiuning)
                 pos_net = self._load_pretrained_model(args.model_pos)
                 if pos_net:
                     self.network['pos'] = pos_net.eval()
-
+        #erstelle Netzwerk
         else:
-            if args.loss_type == 'supervised':
-                self.network = SupervisedTCN(args, kwargs['num_classes'])
-            else:
-                self.network = TCNAutoencoder(args)
+            self.network = TCNAutoencoder(args)
 
             self.optim = torch.optim.Adam(self.network.parameters(),
                                           lr=args.learning_rate)
@@ -62,6 +61,42 @@ class ModelManager:
                      str(sum(p.numel() for p in network.parameters()
                              if p.requires_grad)))
 
+    def save(self, e, run_identifier, losses, losses_100, name_run, args): 
+        model_filename = '../models/' + args.signal_type + '-e' + str(e) + '-hz' + str(args.hz) #pos-i3738, i = iteration
+        torch.save(
+            {
+                'epoch': e,
+                'network': self.network,
+                'model_state_dict': self.network.state_dict(), #a dictionary containing a whole state of the module, contains weights
+                'optimizer_state_dict': self.optim.state_dict(),
+                'losses': losses
+            }, model_filename)
+        logging.info('Model saved to {}'.format(model_filename))
+
+        #save params in extra file
+        params = {
+            "run_identifier": run_identifier,
+            "signal_type"   : args.signal_type,               
+            "lr"            : args.learning_rate,
+            "hz"            : args.hz,
+            "viewing time"  : args.viewing_time,
+            "bs"            : args.batch_size,      #I added
+            "slice-time-windows": args.slice_time_windows,
+            "last loss"     : list(losses)[-1],     #before: losses[-1],
+            "current day"   : date.today().strftime("%d.%m.%Y"),
+            "current time"  : datetime.now().strftime("%H:%M:%S"),
+            "epoch losses train"  : list(losses['train']),
+            "epoch losses val"  : list(losses['val']),
+            "global losses 100 train" : list(losses_100['train']),
+            "global losses 100 val": list(losses_100['val'])          # losses every 100 batches
+        }
+
+        jsonFile = json.dumps(params) #was .dump()
+
+        with open(model_filename + '.json', 'w') as jasonfile: # function opens a file, and returns it as a file object., Write - Opens a file for writing, creates the file if it does not exist
+            jasonfile.write(jsonFile)
+
+    '''
     def save(self, i, run_identifier, losses):
         model_filename = '../models/' + run_identifier + '-i' + str(i)
         torch.save(
@@ -73,3 +108,4 @@ class ModelManager:
                 'losses': losses
             }, model_filename)
         logging.info('Model saved to {}'.format(model_filename))
+    '''
