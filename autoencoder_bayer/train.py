@@ -29,7 +29,7 @@ class Trainer:
         self.save_model = args.save_model
         self.cuda = args.cuda
         self.device = device('cuda' if cuda.is_available() else 'cpu')
-        if self.cuda and self.device == 'cuda':
+        if self.cuda and self.device.type == 'cuda':
             self.model.network = self.model.network.cuda()
         else:
             self.model.network = self.model.network.to(self.device)
@@ -229,7 +229,7 @@ class Trainer:
 
     def forward(self, batch):
         batch = batch.float()
-        if self.cuda and self.device == 'cuda':     #batch = batch.to(self.device)
+        if self.cuda == True and self.device.type == 'cuda':     #batch = batch.to(self.device)
             batch = batch.cuda()
 
         _is_training = self.model.network.training
@@ -351,7 +351,7 @@ class Trainer:
 
 
 args = get_parser().parse_args()
-run_identifier = f"{args.hz}Hz_{args.signal_type}_ETRA_FIFA_EMVIC" #datetime.now().strftime('%m%d-%H%M')
+run_identifier = f"SyBa_{args.hz}Hz_{args.signal_type}_ETRA_FIFA_EMVIC" #datetime.now().strftime('%m%d-%H%M')
 setup_logging(args, run_identifier)
 print_settings()
 
