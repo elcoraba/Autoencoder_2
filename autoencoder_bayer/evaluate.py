@@ -4,7 +4,7 @@ from math import ceil
 
 import pandas as pd
 import numpy as np
-from torch import no_grad, Tensor, manual_seed
+from torch import no_grad, Tensor, manual_seed, device, cuda
 from torch.utils.tensorboard import SummaryWriter
 from sklearn.manifold import TSNE
 from sklearn.pipeline import Pipeline
@@ -91,6 +91,9 @@ class RepresentationEvaluator:
         #    'tensorboard_evals/{}'.format(self.representation_name))
         #    if args.tensorboard else None)
 
+        self.cuda = args.cuda
+        self.device = device('cuda' if cuda.is_available() else 'cpu')
+        
         self.consolidate_corpora()
 
     def consolidate_corpora(self):
@@ -215,7 +218,11 @@ class RepresentationEvaluator:
                     batch = Tensor(x[s]).T.unsqueeze(0)
                 else:
                     batch = Tensor(x[batch_size * s: batch_size * (s + 1)])
-                reps.extend(network.encode(batch                                        #batch.cuda()
+                if self.cuda and self.device.type == 'cuda':
+                    reps.extend(network.encode(batch.cuda()                                        #batch.cuda()
+                                           )[0].cpu().detach().numpy())
+                else:
+                    reps.extend(network.encode(batch                                        
                                            )[0].cpu().detach().numpy())
         return reps
 

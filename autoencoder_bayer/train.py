@@ -271,7 +271,7 @@ class Trainer:
                                             figure=viz,
                                             global_step=i)
 
-        self.evaluator.extract_representations(i, log_stats=True)
+        self.evaluator.extract_representations(i, log_stats=False) #was true
         scores = self.evaluator.evaluate(i)
         if tensorboard_acc:
             for task, classifiers in scores.items():
