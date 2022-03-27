@@ -4,7 +4,7 @@ import logging
 from datetime import datetime
 
 import numpy as np
-from torch import manual_seed, nn, device, cuda, multiprocessing
+from torch import manual_seed, nn, device, cuda, multiprocessing, cat
 from torch.utils.data import DataLoader
 from torch.utils.tensorboard import SummaryWriter
 
@@ -40,6 +40,7 @@ class Trainer:
         # introduced two summary writer, so we can see the two functions in one graph in tensorboard
         self.tensorboard_train = SummaryWriter(f"runs/{run_identifier}_trainLoss")
         self.tensorboard_val = SummaryWriter(f"runs/{run_identifier}_valLoss")
+        self.tensorboard_first_epoch = SummaryWriter(f"runs/{run_identifier}_FIRSTepoch_trainLoss")
         #-B----
 
         self._load_data()
@@ -133,6 +134,10 @@ class Trainer:
         self.epoch_losses = {
             'train': np.zeros(num_checkpoints),
             'val': np.zeros(num_checkpoints)}
+
+    #just used for first epoch, saves loss for every batch
+    def init_currentLoss(self):
+        self.currentLoss = {'train': 0.0}
     
    #-B----  
 
@@ -147,6 +152,7 @@ class Trainer:
 
         self.init_epoch_losses(TRAIN_NUM_EPOCHS)
         self.init_epoch_losses_100(TRAIN_NUM_EPOCHS)
+        self.init_currentLoss()
         counter_100 = 0
 
         t = tqdm(range(0, TRAIN_NUM_EPOCHS))
@@ -179,10 +185,12 @@ class Trainer:
                     self.batch_to_color(sample_rec.detach(), f"reconstructed-batch-train")
                     self.batch_diff_to_color(sample, sample_rec.detach(), 'train')
                     '''
-                '''
+                if e < 1:
+                    self.tensorboard_first_epoch.add_scalar(f"loss in first epoch", self.currentLoss, b)
+
                 if b == 0:
                     break
-                '''
+                
                 #-B----
 
             # save the train loss of the whole epoch
@@ -242,6 +250,7 @@ class Trainer:
         loss = self.loss_fn(reconstructed_batch, batch
                             ).reshape(reconstructed_batch.shape[0], -1).sum(-1).mean()
         self.running_loss[dset] += loss.item()
+        self.currentLoss = loss
 
         #update network if we are training
         if self.model.network.training:
