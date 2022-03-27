@@ -35,6 +35,7 @@ class Trainer:
             self.model.network = self.model.network.to(self.device)
 
         self.rec_loss = args.rec_loss #MSE
+        self.epochs = args.epochs
 
         #-B----
         # introduced two summary writer, so we can see the two functions in one graph in tensorboard
@@ -217,8 +218,8 @@ class Trainer:
             #evaluation
             if (e + 1) % 1 == 0: #TODO 10
                 print('---------------------Evaluation---------------------')
-                self.evaluate_representation(sample, sample_rec, e, self.tensorboard_acc_train)
-                self.evaluate_representation(sample_v, sample_rec_v, e, self.tensorboard_acc_val)
+                self.evaluate_representation(sample, sample_rec, e, self.tensorboard_acc_train, True)
+                self.evaluate_representation(sample_v, sample_rec_v, e, self.tensorboard_acc_val, False)
 
                 
             self.logB(e, 'val') #TODO still there?
@@ -261,8 +262,9 @@ class Trainer:
 
         rand_idx = np.random.randint(0, batch.shape[0])
         return batch[rand_idx].cpu(), reconstructed_batch[rand_idx].cpu()
-
-    def evaluate_representation(self, sample, sample_rec, i, tensorboard_acc):
+    
+    # added do_eval as we just need the different samples between train and val for the visualization, not the evaluation. Therefore we don't need to do the eval twice
+    def evaluate_representation(self, sample, sample_rec, i, tensorboard_acc, do_eval):
         if sample is not None:
             viz = visualize_reconstruction(
                 sample, sample_rec,
@@ -280,13 +282,14 @@ class Trainer:
                                             figure=viz,
                                             global_step=i)
 
-        self.evaluator.extract_representations(i, log_stats=False) #was true
-        scores = self.evaluator.evaluate(i)
-        if tensorboard_acc:
-            for task, classifiers in scores.items():
-                for classifier, acc in classifiers.items():
-                    tensorboard_acc.add_scalar(
-                        '{}_{}_acc'.format(task, classifier), acc, i)
+        if do_eval:
+            self.evaluator.extract_representations(i, log_stats=False) #was true
+            scores = self.evaluator.evaluate(i)
+            if tensorboard_acc:
+                for task, classifiers in scores.items():
+                    for classifier, acc in classifiers.items():
+                        tensorboard_acc.add_scalar(
+                            '{}_{}_acc'.format(task, classifier), acc, i)
 
     
     
