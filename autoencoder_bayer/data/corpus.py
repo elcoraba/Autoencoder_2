@@ -61,7 +61,7 @@ class EyeTrackingCorpus:
         if not path.exists(data_file):
             extract_start = time.time()
             self.data = pd.DataFrame(
-                columns=['subj', 'stim', 'task', 'timestep', 'x', 'y'],
+                columns=['subj', 'stim', 'task', 'x', 'y'],
                 data=self.extract())
             self.data.x = self.data.x.apply(lambda a: np.array(a))
             self.data.y = self.data.y.apply(lambda a: np.array(a))
@@ -100,10 +100,6 @@ class EyeTrackingCorpus:
             # no trim happens when self.slice_time_windows
             trial.x = trial.x[:sample_limit]
             trial.y = trial.y[:sample_limit]
-            
-            # Needed to be added, because of evaluation.py. Because len(trial['timestep']) != len(trial['x']) would happen as with evaluation, sample_limit is not None
-            # First: vt = 0, sample limit = None        Second/Evaluation: vt = 2, sample limit = 2000
-            trial.timestep = trial.timestep[:sample_limit] #New 
 
             # always convert blinks (negative values) to 0.
             trial.x[np.where(trial.x < 0)] = 0
@@ -124,9 +120,6 @@ class EyeTrackingCorpus:
                 trial[['x', 'y']] *= scale_value
             except AttributeError:  # if corpora has no information about dva
                 pass
-            #-B----
-            trial = self.validate_data(trial)
-            #-B----
 
             if self.resample == 'down':
                 trial = du.downsample(trial, self.effective_hz, self.hz)
@@ -151,37 +144,16 @@ class EyeTrackingCorpus:
             self.resample = None
 
         self.data = self.data.apply(preprocess, 1)
-        ''' OLD vel calc
+
         if 'vel' in self.signal_type:
             logging.info('Calculating velocities...')
             ms_per_sample = 1000 / self.effective_hz
             self.data['v'] = self.data[['x', 'y']].apply(
                 lambda x: np.abs(np.diff(np.stack(x))).T, 1) / ms_per_sample
-        '''
-        #-B----
-        if 'vel' in self.signal_type:
-            logging.info('Calculating velocities...')
-            #(x_old - x_new/diff timestep) # with variable timesteps 
-            self.data['v'] = self.data[['x', 'y']].apply(lambda x: np.abs(np.diff(np.stack(x))).T, 1)
-            div = self.data[['timestep']].apply(lambda x: np.abs(np.diff(np.stack(x))).T, 1)
-            #print(self.data['v'][0].shape)
-            #print(self.data['v'][1].shape)
-            #print(div.shape)
-            self.data['v'] = self.data['v'].divide(div) # TODO stack und abs entfernen?
-            #TODO Try to scale the velocity values up
-            #self.data['v'] = self.data['v'] * 100           
-
-            ####FIFA
-            #v: [[0.0, 0.000996946495305795], [0.0005607824036... (3200,0), v[0].shape = (2020,2) (cols, rows)
-            #div: [[1], [1], [1], [1],... (3200,0), div[0].shape = (2020,1)
-            #final v: [[0.0, 0.000996946495305795], [0.0005607824036... (3200,0)  
-            #####
-        #-B----
 
         if self.slice_time_windows:
             hdf5_dataset = self.write_slices_to_h5()
             self.data = hdf5_dataset
-            #print('Size of slices ', len(self.data))
 
     def slice_trials(self):
         def _slice(trial, trial_num):
@@ -249,41 +221,4 @@ class EyeTrackingCorpus:
         logging.info('Saved {} slices to {}'.format(
             len(slices_df), self.hdf5_fname))
         return hdf5_dataset
-
-#-B-----------------------------------------------------------------------------
-    def validate_data(self, trial):
-        #Adapt trial, if sampling freq is not continous - add timestamps in between
-        trial = self.change_in_sampling_freq(trial)
-
-        return trial
-    
-    #The calculated sampling frequency in subject  JP and trial  0103 differs from the given frequency 1000
-    #Calculated sampling frequency:  951.9564140663695
-    #Change in sampling freq.:  subj:  JP trial:  0098 timestamp:  18703378   18703385
-    #Matlab: exp 2.000000 trial 74.000000 t 431.000000              -> trial 0103 ist an 74ster Stelle von self.stimuli
-
-    #Fill gaps in dataset before any up/downsampling is done
-    def change_in_sampling_freq(self, trial):
-        point_pairs = []
-        for i in range(len(trial.timestep) - 1):
-            if trial.timestep[i] + self.step == trial.timestep[i+1]:
-                continue
-            else:
-                point_pairs.append((trial.timestep[i], trial.timestep[i+1]))
-        # Were there any gaps in the data found? Then do the upsampling
-        if len(point_pairs) > 0: 
-            #if trial['subj'] == 'WS' and trial['stim'] == '0117.jpg':
-            #    np.savetxt(f"FIFA_holes_subj {trial['subj']}_stim {trial['stim']}_xy_beforeHoleFilling.csv", list(zip(trial['timestep'], trial['x'], trial['y'])), delimiter=',', header='t,x,y')
-                #np.savetxt(f"FIFA_holes_subj {trial['subj']}_stim {trial['stim']}_y.csv", list(zip(trial['timestep'], trial['y'])), delimiter=',')
-                #exit()
-
-            #print('Adapt sampl.freq. ', 'subj: ', trial.subj, 'stim: ', trial.stim)
-            trial = du.upsample_between_timestamp_pairs(trial, point_pairs, self.step) 
-
-            #if trial['subj'] == 'DA' and trial['stim'] == '0034.jpg' or trial['subj'] == 'DA' and trial['stim'] == '0126.jpg' or trial['subj'] == 'DA' and trial['stim'] == '0164.jpg' or trial['subj'] == 'DA' and trial['stim'] == '0200.jpg' or trial['subj'] == 'DA' and trial['stim'] == '0219.jpg' or trial['subj'] == 'TS' and trial['stim'] == '0050.jpg' or trial['subj'] == 'TS' and trial['stim'] == '0122.jpg' or trial['subj'] == 'TS' and trial['stim'] == '0150.jpg' or trial['subj'] == 'WS' and trial['stim'] == '0065.jpg' or trial['subj'] == 'WS' and trial['stim'] == '0066.jpg' or trial['subj'] == 'WS' and trial['stim'] == '0077.jpg' or trial['subj'] == 'WS' and trial['stim'] == '0085.jpg' or trial['subj'] == 'WS' and trial['stim'] == '0117.jpg':
-            #    np.savetxt(f"FIFA_holes_subj {trial['subj']}_stim {trial['stim']}_xy_afterHoleFilling_linear.csv", list(zip(trial['timestep'], trial['x'], trial['y'])), delimiter=',',header ='t,x,y')
-        
-        return trial
-
-
 

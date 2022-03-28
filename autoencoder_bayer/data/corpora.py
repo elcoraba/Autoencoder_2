@@ -20,15 +20,10 @@ class MIT_LowRes(EyeTrackingCorpus):
     """
     def __init__(self, args):
         self.px_per_dva = 35
-        self.hz = 240 #For sampling frequency, can't find time in data -> therefore rely on the 240Hz
+        self.hz = 240
         self.w, self.h = (1280, 1024)  # stimuli is 860 x 1024
         self.root = 'MIT-LOWRES/DATA/'
         self.stim_dir = self.root.replace('DATA', 'ALLSTIMULI')
-
-        #---B-
-        self.timestep = []
-        self.step = 4
-        #---B-
 
         super(MIT_LowRes, self).__init__(args)
 
@@ -44,21 +39,11 @@ class MIT_LowRes(EyeTrackingCorpus):
 
                 mat = load(subj_dir + '/' + stim, 'matlab')
                 key = list(mat.keys())[-1]
-
-                #---B-
-                self.timestep = np.arange(0, 720*self.step, self.step) # 0, 4, 8 ... 2876 
-                # One stim has just shape (706,0), as this leads to problems with the velocity calc. This stimulus is dropped
-                if mat[key]['DATA'].item()['eyeData'].item().T[0].size < 720:
-                    continue
-                #---B-
-                #subj, stim, task, timestep, x, y
                 data.append([subj,
                              stim.replace('.mat', '.jpeg'),
                              'free-viewing',  # double check
-                             self.timestep,
                              mat[key]['DATA'].item()['eyeData'].item().T[0][:720],
                              mat[key]['DATA'].item()['eyeData'].item().T[1][:720]])
-        #['aaa', 'i1182314083_lowRes512.jpeg', 'free-viewing', array([   0,    4,    8,..., 2872, 2876]), array([530.10126582, 530.10126582,..., 516.17721519]), array([428.82666667, 428.82666667, ..., 492.18666667])] 
         return data
 
 
@@ -79,12 +64,8 @@ class ETRA2019(EyeTrackingCorpus):
         self.px_per_dva = 35
         self.root = 'ETRA2019/data/{}'
         self.stim_dir = 'ETRA2019/images/'
-        self.subjects = ['009', '019', '022', '058', '059','060', '062', 'SMC']
-
-        #-B---
-        self.timestep = []
-        self.step = 2 # 1000Hz/500Hz
-        #-B---
+        self.subjects = ['009', '019', '022', '058', '059',
+                         '060', '062', 'SMC']
 
         # the grey stimuli is not included in the data set, here's code to
         # generate a grey image. copy paste grey.bmp to a new 'BLANK' folder.
@@ -97,9 +78,9 @@ class ETRA2019(EyeTrackingCorpus):
         data = []
 
         for subj in self.subjects:
-            subj_dir = self.root.format(subj)                               #e.g. 'ETRA2019/data/009'
+            subj_dir = self.root.format(subj)
             for stim in listdir(subj_dir):
-                _, _, condition, stim_type, stim_file = stim.split('_')     #stimulus name: 009_002_Fixation_Natural_nat011 TODO trial
+                _, _, condition, stim_type, stim_file = stim.split('_')
                 if condition == 'Fixation':
                     continue
 
@@ -110,19 +91,13 @@ class ETRA2019(EyeTrackingCorpus):
                     task = stim_type + '_search'
 
                 csv = load(subj_dir + '/' + stim, 'csv', delimiter=',')
-                #-B---
-                self.timestep = csv['Time'] - csv['Time'][0]                           #-firstTimestamp 0, 2, 4, 6...
-                x = ((csv['LXpix'] + csv['RXpix']) / 2)                                 #XPos in pixeln #float64
-                y = ((csv['LYpix'] + csv['RYpix']) / 2)
-                #-B---
-                #subj, stim, task, timestep, x, y
+
                 data.append([
-                    subj,                                                               #009
-                    '/'.join([stim_folder, stim_file.replace('csv', 'bmp')]),           #NATURAL/
-                    task,                                                               #Natural_free_viewing
-                    self.timestep,
-                    x.to_list(),                      
-                    y.to_list()
+                    subj,
+                    '/'.join([stim_folder, stim_file.replace('csv', 'bmp')]),
+                    task,
+                    ((csv['LXpix'] + csv['RXpix']) / 2).to_list(),
+                    ((csv['LYpix'] + csv['RYpix']) / 2).to_list()
                 ])
         return np.array(data)
 
@@ -164,39 +139,29 @@ class EMVIC2014(EyeTrackingCorpus):
         self.root = 'EMVIC2014/' #/official_files/
         self.stim_dir = None
 
-        #-B---
-        self.step = 1 #1000 ms / sampling rate, WIKI: frequenz
-        #-B---
-
         super(EMVIC2014, self).__init__(args)
 
     def extract(self):
         data = []
-        for split in ['train', 'test']: #testSolved #test:subj is just ?
+        for split in ['train', 'test']: #testSolved
             with open(self.root + split + '.csv', 'r') as f:
                 trials = [t.split(',') for t in f.read().split('\n')]
-            
+
             for i, trial in enumerate(trials):
                 if len(trial) == 1:
                     continue
-                #s3,true,659.72,888.27,658.97,890.82,655.97,894.63
-                x = list(map(float, trial[2::2]))                   #skippe ersten 2 Elems, dann nehme jedes zweite
-                y = list(map(float, trial[3::2]))                   #skippe ersten 3 Elems, dann nehme jedes zweite
-                #-B---
-                self.timestep = np.arange(0,len(x),self.step)       #length varies! No timestep Info available
-                #-B---
 
+                x = list(map(float, trial[2::2]))
+                y = list(map(float, trial[3::2]))
                 data.append([
                     trial[0] if split == 'train' else 'test-' + trial[0],
                     '',
                     'face',
-                    self.timestep,
                     # normalize so that (0, 0) is upper left of screen
-                    x - np.min(x),                                  #e.g. -217,58       #659.72 - (-321.11) = 980.83
+                    x - np.min(x),
                     y - np.min(y)
                 ])
-        #print(data[0])     # ['s3', '', 'face', array([   0,    1,    2, ..., 1632, 1633, 1634]), array([980.83, 980.08, 977.08, ...,   4.5 ,   4.5 ,   4.5 ]), array([1183.51, 1186.06, 1189.87, ...,  122.03,  123.31,  127.12])]
-        
+
         return np.array(data)
 
 
@@ -249,10 +214,6 @@ class Cerf2007_FIFA(EyeTrackingCorpus):
             ['0001', '0002', '0003', '0004', '0005', '0006', '0007', '0008', '0009', '0010', '0011', '0022', '0023', '0024', '0025', '0026', '0028', '0030', '0034', '0035', '0036', '0038', '0039', '0040', '0041', '0042', '0043', '0044', '0045', '0046', '0047', '0053', '0055', '0060', '0061', '0062', '0063', '0065', '0069', '0070', '0071', '0074', '0075', '0076', '0082', '0083', '0085', '0091', '0092', '0106', '0113', '0115', '0116', '0117', '0118', '0119', '0120', '0122', '0123', '0124', '0125', '0126', '0127', '0131', '0132', '0133', '0134', '0135', '0136', '0138', '0139', '0140', '0141', '0142', '0143', '0144', '0145', '0146', '0147', '0148', '0149', '0150', '0151', '0152', '0153', '0154', '0155', '0158', '0159', '0160', '0161', '0162', '0163', '0164', '0165', '0166', '0167', '0168', '0169', '0170', '0171', '0172', '0173', '0174', '0175', '0176', '0177', '0178', '0179', '0180', '0181', '0182', '0183', '0184', '0185', '0186', '0187', '0188', '0189', '0190', '0191', '0192', '0193', '0194', '0195', '0196', '0197', '0198', '0199', '0200', '0201', '0202', '0203', '0204', '0205', '0206', '0207', '0208', '0209', '0210', '0211', '0212', '0213', '0214', '0215', '0216', '0217', '0218', '0219', '0220', '0221', '0222', '0223', '0224', '0225', '0226', '0227', '0228', '0229', '0230', '0231', '0232', '0233', '0234', '0235', '0236', '0237', '0238', '0239', '0240', '0241', '0242', '0243', '0244', '0245', '0246', '0247', '0248', '0249', '0250', '0251', '0252', '0253', '0254', '0255', '0256', '0257', '0258', '0259', '0260', '0261', '0262', '0263', '0264', '0265', '0266', '0267', '0268', '0269', '0270'],
             ['0134', '0135', '0154', '0147', '0126', '0143', '0144', '0123', '0150', '0142', '0152', '0124', '0145', '0053', '0106', '0125', '0148', '0136', '0149', '0139', '0132', '0155', '0140', '0146', '0138', '0141', '0131', '0122', '0127', '0133', '0033', '0052', '0107', '0031', '0066', '0019', '0097', '0099', '0102', '0048', '0072', '0112', '0018', '0020', '0050', '0089', '0093', '0014', '0016', '0077', '0084', '0087', '0095', '0104', '0110', '0029', '0098', '0027', '0086', '0101', '0094', '0111', '0137', '0032', '0051', '0054', '0064', '0096', '0073', '0081', '0156', '0049', '0090', '0103', '0105', '0017', '0037', '0068', '0109', '0157', '0007', '0022', '0042', '0044', '0063', '0069', '0038', '0045', '0071', '0118', '0119', '0120', '0002', '0003', '0006', '0025', '0113', '0115', '0034', '0074', '0075', '0082', '0083', '0151', '0009', '0023', '0024', '0092', '0116', '0153', '0001', '0026', '0040', '0047', '0076', '0195', '0011', '0046', '0055', '0062', '0197', '0232', '0004', '0005', '0008', '0035', '0041', '0065', '0028', '0030', '0036', '0060', '0061', '0117', '0010', '0039', '0043', '0070', '0085', '0091', '0004', '0025', '0091', '0008', '0035', '0082', '0023', '0115', '0119', '0120', '0151', '0153', '0030', '0044', '0045', '0047', '0076', '0092', '0026', '0034', '0040', '0069', '0070', '0085', '0001', '0002', '0003', '0010', '0011', '0116', '0195', '0197', '0232', '0006', '0041', '0043', '0007', '0009', '0022', '0024', '0028', '0063', '0005', '0039', '0055', '0060', '0071', '0083', '0036', '0046', '0061', '0062', '0065', '0113', '0038', '0042', '0074', '0075', '0117', '0118'],
         ]
-        #-B---
-        self.timestep = []
-        self.step = 1 #1000 ms / sampling rate, WIKI: frequenz
-        #-B---
 
         super(Cerf2007_FIFA, self).__init__(args)
 
@@ -283,19 +244,12 @@ class Cerf2007_FIFA(EyeTrackingCorpus):
                 # _tmp[subj + str(phase)] = stimuli_order
 
                 for n, eye_data in enumerate(stimuli_data):
-                    #-B---
-                    firstTimestep = list(eye_data['scan_t'].item())[0]
-                    self.timestep = list(eye_data['scan_t'].item()) - firstTimestep                         # 0, 1, 2, ...
-                    #-B---
-
                     data.append([
                         subj,
                         self.stimuli[phase][n] + '.jpg',
                         task,
-                        self.timestep,
                         list(eye_data['scan_x'].item()),
                         list(eye_data['scan_y'].item()),
                     ])
             # TO-DO: for the 2nd phase, need to filter out probe image data
-        #['CH', '0001.jpg', 'free-viewing', array([   0,    1,    2, ..., 2018, 2019, 2020]), [506.3, 506.2 ...], [373.5, 373.1,...]]
         return np.array(data)
