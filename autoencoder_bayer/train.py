@@ -41,7 +41,8 @@ class Trainer:
         # introduced two summary writer, so we can see the two functions in one graph in tensorboard
         self.tensorboard_train = SummaryWriter(f"runs/{run_identifier}_trainLoss")
         self.tensorboard_val = SummaryWriter(f"runs/{run_identifier}_valLoss")
-        self.tensorboard_first_epoch = SummaryWriter(f"runs/{run_identifier}_FIRSTepoch_trainLoss")
+        self.tensorboard_first_epoch_train = SummaryWriter(f"runs/{run_identifier}_FIRSTepoch_trainLoss")
+        self.tensorboard_first_epoch_val = SummaryWriter(f"runs/{run_identifier}_FIRSTepoch_valLoss")
         #-B----
 
         self._load_data()
@@ -189,6 +190,7 @@ class Trainer:
                 if e < 1:
                     self.tensorboard_first_epoch.add_scalar(f"loss in first epoch", self.currentLoss, b)
 
+                    self.tensorboard_first_epoch_train.add_scalar(f"loss in first epoch TRAIN", self.currentLoss, b)
                 if b == 0:
                     break
                 
@@ -210,6 +212,8 @@ class Trainer:
                 self.batch_to_color(sample_rec_v.detach(), f"reconstructed-batch-val")
                 self.batch_diff_to_color(sample_v, sample_rec_v.detach(), 'val')
                 '''
+                if e < 1:
+                    self.tensorboard_first_epoch_val.add_scalar(f"loss in first epoch VAL", self.currentLoss, b)
                 '''
                 if b == 0:
                     break
