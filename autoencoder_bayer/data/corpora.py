@@ -2,6 +2,8 @@ import numpy as np
 from .corpus import EyeTrackingCorpus
 from .utils import *
 
+import matplotlib.pyplot as plt
+
 
 class MIT_LowRes(EyeTrackingCorpus):
     """
@@ -171,6 +173,11 @@ class EMVIC2014(EyeTrackingCorpus):
         super(EMVIC2014, self).__init__(args)
 
     def extract(self):
+        maxX = float('-inf')
+        minX = float('inf')
+        maxY = float('-inf')
+        minY = float('inf')
+        
         data = []
         for split in ['train', 'test']: #testSolved #test:subj is just ?
             with open(self.root + split + '.csv', 'r') as f:
@@ -196,7 +203,36 @@ class EMVIC2014(EyeTrackingCorpus):
                     y - np.min(y)
                 ])
         #print(data[0])     # ['s3', '', 'face', array([   0,    1,    2, ..., 1632, 1633, 1634]), array([980.83, 980.08, 977.08, ...,   4.5 ,   4.5 ,   4.5 ]), array([1183.51, 1186.06, 1189.87, ...,  122.03,  123.31,  127.12])]
+                ##########
+                if max(x) > maxX:
+                    maxX = max(x)
+                if min(x) < minX:
+                    minX = min(x)
+                
+                if max(y) > maxY:
+                    maxY = max(y)
+                if min(y) < minY:
+                    minY = min(y)
+                ##########
+        print('max x value ', maxX)
+        print('min x value ', minX)
+        print('max y value ', maxY)
+        print('min y value ', minY)
+        a = np.array(data) #data[0]
+        a_x = a[:,4]      #4 x , 5 y
+        a_y = a[:,5]
         
+        #PERCENTILE
+        lowerX, upperX = calcPercentile(a_x,1,99)
+        print('X: lower, upper Percentile: ', lowerX, ' ', upperX)
+        lowerY, upperY = calcPercentile(a_y,1,99)
+        print('Y: lower, upper Percentile: ', lowerY, ' ', upperY)
+
+        #Plot distribution
+        #plt.hist(np.array(a_x), bins='auto')
+        plt.hist(np.array(a_y), bins='auto')
+        plt.show()
+        exit()
         return np.array(data)
 
 

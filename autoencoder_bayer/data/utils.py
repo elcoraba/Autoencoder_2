@@ -197,3 +197,24 @@ def upsample(trial, new_hz, old_hz):
     
     return trial
 
+#-B-----------------
+
+def calcPercentile(a, lowerPerc, upperPerc):
+    Pmax = float('-inf')
+    Pmin = float('inf')
+
+    for i in range(a.shape[0]):
+            #exclude all nans as they are getting chosen as highest value
+            idx = [x for x in a[i] if ~np.isnan(x)]
+            a[i] = idx
+            
+            maxx = np.percentile(a[i], upperPerc)
+            minn = np.percentile(a[i], lowerPerc)
+        
+            if maxx > Pmax:
+                Pmax = maxx
+            if minn < Pmin:
+                Pmin = minn
+    return Pmin, Pmax
+
+
