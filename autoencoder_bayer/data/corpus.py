@@ -105,25 +105,80 @@ class EyeTrackingCorpus:
             # First: vt = 0, sample limit = None        Second/Evaluation: vt = 2, sample limit = 2000
             trial.timestep = trial.timestep[:sample_limit] #New 
 
-            # always convert blinks (negative values) to 0.
-            trial.x[np.where(trial.x < 0)] = 0
-            trial.y[np.where(trial.y < 0)] = 0
-
-            # coordinate normalization is not necessary for velocity space
+            #TODO Thomas: do the following (115-122) just for pos? as it was before. Couldn't this lead to other vel values as x and y is changed
+            # coordinate normalization is not necessary for velocity space (as we just give the vel values to the network)
+            #if self.signal_type == 'pos':
+                #trial.x = np.clip(trial.x, a_min=0, a_max=self.w or MAX_X_RESOLUTION)   #TODO Thomas 0, MAX_X
+                #trial.y = np.clip(trial.y, a_min=0, a_max=self.h or MAX_Y_RESOLUTION)
             if self.signal_type == 'pos':
-                # trial = self.pull_coords_to_zero(trial)
-                trial.x = np.clip(trial.x, a_min=0, a_max=self.w or MAX_X_RESOLUTION)
-                trial.y = np.clip(trial.y, a_min=0, a_max=self.h or MAX_Y_RESOLUTION)
+                #clip: Given an interval, values outside the interval are clipped to the interval edges
+                #print('0 ', trial.x)                                                                         #[368.3 367.6 367.7 ... 307.5 307.5 307.9]
+                trial.x = np.clip(trial.x, a_min=self.min_x, a_max= self.max_x)
+                trial.y = np.clip(trial.y, a_min=self.min_y, a_max= self.max_y)
+                #print('1 ', trial.x) 
+                #print(np.nanmin(trial.x))
+                #print(np.nanmax(trial.x))                                                                        #[368.3 367.6 367.7 ... 307.5 307.5 307.9]
+                trial.x = trial.x + abs(np.nanmin(trial.x)) #-> immer größer 0 dann
+                trial.y = trial.y + abs(np.nanmin(trial.y))
+                #print('2 ', trial.x)                                                                          #[614.8 615.  615.  ... 710.7 710.8 710.9]
+                trial.x = trial.x / np.nanmax(trial.x) #->  dann immer zwischen 0 und 1,  # Clip x and y values between 0 and 1
+                trial.y = trial.y / np.nanmax(trial.y)
+                #print('3 ', trial.x)                                                                          #[0.57093287 0.56999867 0.57013212 ... 0.48979047 0.48979047 0.4903243 ]
+                
+                '''
+                if len(np.where(trial.x < 0)) > 1 or len(np.where(trial.y < 0)) > 1:
+                    #idx = np.where(trial.y < 0)
+                    #print(trial.y[idx])
+                    print('#############Still values < 0 there')
+                    exit()
+                '''
 
-            trial.x = du.interpolate_nans(trial.x)
-            trial.y = du.interpolate_nans(trial.y)
+                ######## just to be sure
+                #(vel NN): hab das eingerückt, das sonst zB minus Werte bei EMVIC, auf Nan gesetzt werden
+                trial.x[np.where(trial.x < 0)] = float("nan") # was = 0
+                trial.y[np.where(trial.y < 0)] = float("nan")
+                
+            x_nan = np.isnan(trial.x)                   
+            y_nan = np.isnan(trial.y)                   #y_nan_idx = 0       False  1       False ...
+
+            # just ETRA has NANs in its raw data
+                                # if trial just consists out of Nans we can't do a interpolation
+            if sum(x_nan)> 0:   #and len(trial.x) > sum(x_nan):
+                #print('Interpolate Nans')
+                #idx = np.where(np.isnan(trial.x))
+                #print('idx ', idx)
+                #print(trial.x[585-10:585])
+                #print(trial.x[620:620+10])
+                #print('0 ', trial.x[idx])
+                trial.x = du.interpolate_nans(trial.x)
+                #print(' ', trial.x[idx])
+            if sum(y_nan)> 0: #and len(trial.y) > sum(y_nan):
+                #print('Interpolate Nans')
+                #idx = np.where(np.isnan(trial.y))
+                #print('subj ', trial.subj ,'stim ', trial.stim , 'task ', trial.task)
+                #print(len(trial.y))
+                #print(sum(y_nan))
+                #print('0 ', trial.y)#[idx])
+                trial.y = du.interpolate_nans(trial.y)
+                
+            #########
 
             # scale coordinates so 1 degree of visual angle = 35 pixels
             try:
                 scale_value = PX_PER_DVA / self.px_per_dva
                 trial[['x', 'y']] *= scale_value
             except AttributeError:  # if corpora has no information about dva
+                #TODO do back when new dataset
+                #print('Scale Value preprocess problem')
                 pass
+            
+            #TODO remove if, if we do the normalization for both networks
+            # As we just do the clipping when we have 'pos' here would faults appear when when don't include the if
+            if self.signal_type == 'pos':
+                assert np.all(trial.x >= 0) and np.all(trial.x <= 1), 'Problem! A x-Value in the dataset is not between 0 and 1'   + 'Trial: ' + trial.subj + ' Stimulus: ' + trial.stim + ' Value below 0: ' + str(np.argwhere(trial.x < 0)) + ' Value above 1: ' + str(np.argwhere(trial.x > 1))
+                assert np.all(trial.y >= 0) and np.all(trial.y <= 1), 'Problem! A y-Value in the dataset is not between 0 and 1: ' + 'Trial: ' + trial.subj + ' Stimulus: ' + trial.stim + ' Value below 0: ' + str(np.argwhere(trial.y < 0)) + ' Value above 1: ' + str(np.argwhere(trial.y > 1))       
+            #-B---  
+            
             #-B----
             trial = self.validate_data(trial)
             #-B----
@@ -133,8 +188,16 @@ class EyeTrackingCorpus:
             elif self.resample == 'up':
                 trial = du.upsample(trial, self.effective_hz, self.hz)
 
+            #-B----
+            #TODO remove if, if we do the normalization for both networks
+            #Do clipping again, just to be sure up or downsampling didn't do something crazy
+            if self.signal_type == 'pos':
+                assert np.all(trial.x >= 0) and np.all(trial.x <= 1), 'Problem! A x-Value in the dataset is not between 0 and 1'   + 'Trial: ' + trial.subj + ' Stimulus: ' + trial.stim + ' Value below 0: ' + str(np.argwhere(trial.x < 0)) + ' Value above 1: ' + str(np.argwhere(trial.x > 1))
+                assert np.all(trial.y >= 0) and np.all(trial.y <= 1), 'Problem! A y-Value in the dataset is not between 0 and 1: ' + 'Trial: ' + trial.subj + ' Stimulus: ' + trial.stim + ' Value below 0: ' + str(np.argwhere(trial.y < 0)) + ' Value above 1: ' + str(np.argwhere(trial.y > 1))       
+            #-B----
+            
             return trial
-
+        logging.info('Preprocessing the data')
         sample_limit = (int(self.hz * self.viewing_time)
                         if self.viewing_time > 0
                         else None)
@@ -176,6 +239,17 @@ class EyeTrackingCorpus:
             #div: [[1], [1], [1], [1],... (3200,0), div[0].shape = (2020,1)
             #final v: [[0.0, 0.000996946495305795], [0.0005607824036... (3200,0)  
             #####
+      
+
+        ###  Throw out NaN values
+        x_nan_idx = self.data['x'].isna()                   #self.data is a Dataframe, self.data['x'] is a Series
+        y_nan_idx = self.data['y'].isna()                   #y_nan_idx = 0       False  1       False ...
+
+        if sum(x_nan_idx)> 0 or sum(y_nan_idx)> 0:
+            print('Still Nans ############################################ ')
+            idx = (x_nan_idx | y_nan_idx)
+            self.data['x'] = self.data['x'][~idx]
+            self.data['y'] = self.data['y'][~idx]   
         #-B----
 
         if self.slice_time_windows:

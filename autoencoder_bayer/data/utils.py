@@ -3,6 +3,7 @@ from scipy.interpolate import interp1d
 import os
 import pandas as pd
 import numpy as np
+import matplotlib.pyplot as plt
 
 
 def load(filename, file_format, **kwargs):
@@ -216,5 +217,26 @@ def calcPercentile(a, lowerPerc, upperPerc):
             if minn < Pmin:
                 Pmin = minn
     return Pmin, Pmax
+
+def getDistribution(xVals, xminP, xmaxP, yVals, yminP, ymaxP, plot):
+    
+    minX, maxX = calcPercentile(xVals,0,100)
+    print('X: min, max: ', minX, ' ', maxX)
+    minY, maxY = calcPercentile(yVals,0,100) 
+    print('Y: min, max: ', minY, ' ', maxY)
+    
+    lowerX, upperX = calcPercentile(xVals,xminP, xmaxP)
+    print('X: lower, upper Percentile: ', lowerX, ' ', upperX)
+    lowerY, upperY = calcPercentile(yVals, yminP, ymaxP)
+    print('Y: lower, upper Percentile: ', lowerY, ' ', upperY)
+    
+    if plot:
+        #Plot distribution
+        plt.hist(np.array(xVals), bins='auto', histtype='step')
+        plt.show()
+        plt.hist(np.array(yVals), bins='auto', histtype='step')
+        #plt.xlim(xmin=-100, xmax = 1200)
+        plt.show()
+
 
 

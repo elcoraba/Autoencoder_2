@@ -60,7 +60,17 @@ class MIT_LowRes(EyeTrackingCorpus):
                              self.timestep,
                              mat[key]['DATA'].item()['eyeData'].item().T[0][:720],
                              mat[key]['DATA'].item()['eyeData'].item().T[1][:720]])
+                x = mat[key]['DATA'].item()['eyeData'].item().T[0][:720]
+                y = mat[key]['DATA'].item()['eyeData'].item().T[1][:720]
         #['aaa', 'i1182314083_lowRes512.jpeg', 'free-viewing', array([   0,    4,    8,..., 2872, 2876]), array([530.10126582, 530.10126582,..., 516.17721519]), array([428.82666667, 428.82666667, ..., 492.18666667])] 
+        '''
+        a = np.array(data)
+        a_x = a[:,4]
+        a_y = a[:,5]
+        getDistribution(a_x, 1, 91, a_y, 1, 98, True)
+        exit()
+        '''
+
         return data
 
 
@@ -86,6 +96,11 @@ class ETRA2019(EyeTrackingCorpus):
         #-B---
         self.timestep = []
         self.step = 2 # 1000Hz/500Hz
+        # needed for preprocessing as we don't have self.w self.h for all datasets
+        self.min_x = 0
+        self.max_x = 960
+        self.min_y = 0
+        self.max_y = 640
         #-B---
 
         # the grey stimuli is not included in the data set, here's code to
@@ -95,7 +110,7 @@ class ETRA2019(EyeTrackingCorpus):
 
         super(ETRA2019, self).__init__(args)
 
-    def extract(self):
+    def extract(self):      
         data = []
 
         for subj in self.subjects:
@@ -126,6 +141,14 @@ class ETRA2019(EyeTrackingCorpus):
                     x.to_list(),                      
                     y.to_list()
                 ])
+        '''
+        a = np.array(data) 
+        a_x = a[:,4]      #4 x , 5 y
+        a_y = a[:,5]
+        getDistribution(a_x, 1, 91, a_y, 1, 98, True)
+        exit()
+        '''
+        
         return np.array(data)
 
 
@@ -168,16 +191,16 @@ class EMVIC2014(EyeTrackingCorpus):
 
         #-B---
         self.step = 1 #1000 ms / sampling rate, WIKI: frequenz
+        # needed for preprocessing as we don't have self.w self.h for all datasets
+        self.min_x = -2000
+        self.max_x = 2000
+        self.min_y = -2000
+        self.max_y = 2000
         #-B---
 
         super(EMVIC2014, self).__init__(args)
 
-    def extract(self):
-        maxX = float('-inf')
-        minX = float('inf')
-        maxY = float('-inf')
-        minY = float('inf')
-        
+    def extract(self):        
         data = []
         for split in ['train', 'test']: #testSolved #test:subj is just ?
             with open(self.root + split + '.csv', 'r') as f:
@@ -199,40 +222,23 @@ class EMVIC2014(EyeTrackingCorpus):
                     'face',
                     self.timestep,
                     # normalize so that (0, 0) is upper left of screen
-                    x - np.min(x),                                  #e.g. -217,58       #659.72 - (-321.11) = 980.83
-                    y - np.min(y)
+                    # Removed as Thomas does not like it
+                    x, #- np.min(x),                                  #e.g. -217,58       #659.72 - (-321.11) = 980.83
+                    y #- np.min(y)
                 ])
         #print(data[0])     # ['s3', '', 'face', array([   0,    1,    2, ..., 1632, 1633, 1634]), array([980.83, 980.08, 977.08, ...,   4.5 ,   4.5 ,   4.5 ]), array([1183.51, 1186.06, 1189.87, ...,  122.03,  123.31,  127.12])]
-                ##########
-                if max(x) > maxX:
-                    maxX = max(x)
-                if min(x) < minX:
-                    minX = min(x)
-                
-                if max(y) > maxY:
-                    maxY = max(y)
-                if min(y) < minY:
-                    minY = min(y)
-                ##########
-        print('max x value ', maxX)
-        print('min x value ', minX)
-        print('max y value ', maxY)
-        print('min y value ', minY)
-        a = np.array(data) #data[0]
+
+
+        ##########Get distributions
+        '''
+        a = np.array(data) 
         a_x = a[:,4]      #4 x , 5 y
         a_y = a[:,5]
-        
-        #PERCENTILE
-        lowerX, upperX = calcPercentile(a_x,1,99)
-        print('X: lower, upper Percentile: ', lowerX, ' ', upperX)
-        lowerY, upperY = calcPercentile(a_y,1,99)
-        print('Y: lower, upper Percentile: ', lowerY, ' ', upperY)
-
-        #Plot distribution
-        #plt.hist(np.array(a_x), bins='auto')
-        plt.hist(np.array(a_y), bins='auto')
-        plt.show()
+        getDistribution(a_x, 1, 91, a_y, 1, 98, True)
         exit()
+        '''
+        ##########
+        
         return np.array(data)
 
 
@@ -288,11 +294,16 @@ class Cerf2007_FIFA(EyeTrackingCorpus):
         #-B---
         self.timestep = []
         self.step = 1 #1000 ms / sampling rate, WIKI: frequenz
+         # needed for preprocessing as we don't have self.w self.h for all datasets
+        self.min_x = 0
+        self.max_x = 1080
+        self.min_y = 0
+        self.max_y = 960
         #-B---
 
         super(Cerf2007_FIFA, self).__init__(args)
 
-    def extract(self):
+    def extract(self):        
         data = []
         # Paper states 7 subjects, but has data for 8
         # (general.mat lists 34 subjects though...)
@@ -323,15 +334,24 @@ class Cerf2007_FIFA(EyeTrackingCorpus):
                     firstTimestep = list(eye_data['scan_t'].item())[0]
                     self.timestep = list(eye_data['scan_t'].item()) - firstTimestep                         # 0, 1, 2, ...
                     #-B---
+                    x = list(eye_data['scan_x'].item())
+                    y = list(eye_data['scan_y'].item())
 
                     data.append([
                         subj,
                         self.stimuli[phase][n] + '.jpg',
                         task,
                         self.timestep,
-                        list(eye_data['scan_x'].item()),
-                        list(eye_data['scan_y'].item()),
+                        x,
+                        y
                     ])
             # TO-DO: for the 2nd phase, need to filter out probe image data
+        '''       
+        a = np.array(data)
+        a_x = a[:,4]      #4 x , 5 y
+        a_y = a[:,5]
+        getDistribution(a_x, 2, 71, a_y, 8, 69, True)
+        exit()
+        '''
         #['CH', '0001.jpg', 'free-viewing', array([   0,    1,    2, ..., 2018, 2019, 2020]), [506.3, 506.2 ...], [373.5, 373.1,...]]
         return np.array(data)
