@@ -209,15 +209,20 @@ class EMVIC2014(EyeTrackingCorpus):
             for i, trial in enumerate(trials):
                 if len(trial) == 1:
                     continue
+                if trial[0] == 's28':                               #preprocess: sum(y_nan) == len(trial.x):
+                    if i == 318:
+                        continue
+                if split == 'test' and i == 504:
+                    continue
+                    #print('split ', split, 'i: ', i, data[i][5][0:10]) 
                 #s3,true,659.72,888.27,658.97,890.82,655.97,894.63
                 x = list(map(float, trial[2::2]))                   #skippe ersten 2 Elems, dann nehme jedes zweite
                 y = list(map(float, trial[3::2]))                   #skippe ersten 3 Elems, dann nehme jedes zweite
                 #-B---
                 self.timestep = np.arange(0,len(x),self.step)       #length varies! No timestep Info available
                 #-B---
-
                 data.append([
-                    trial[0] if split == 'train' else 'test-' + trial[0],
+                    trial[0] if split == 'train' else 'test-' + trial[0], # + str(i),
                     '',
                     'face',
                     self.timestep,
@@ -226,19 +231,21 @@ class EMVIC2014(EyeTrackingCorpus):
                     x, #- np.min(x),                                  #e.g. -217,58       #659.72 - (-321.11) = 980.83
                     y #- np.min(y)
                 ])
+                  
         #print(data[0])     # ['s3', '', 'face', array([   0,    1,    2, ..., 1632, 1633, 1634]), array([980.83, 980.08, 977.08, ...,   4.5 ,   4.5 ,   4.5 ]), array([1183.51, 1186.06, 1189.87, ...,  122.03,  123.31,  127.12])]
 
 
-        ##########Get distributions
+        ##########Get distributions (two different dists for train and test!)
         '''
-        a = np.array(data) 
-        a_x = a[:,4]      #4 x , 5 y
-        a_y = a[:,5]
-        getDistribution(a_x, 1, 91, a_y, 1, 98, True)
-        exit()
-        '''
+            print('split ', split)
+            a = np.array(data) 
+            a_x = a[:,4]      #4 x , 5 y
+            a_y = a[:,5]
+            getDistribution(a_x, 1, 91, a_y, 1, 98, True)
+            #exit()
+        '''   
         ##########
-        
+    
         return np.array(data)
 
 

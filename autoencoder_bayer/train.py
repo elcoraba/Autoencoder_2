@@ -188,8 +188,7 @@ class Trainer:
                     self.batch_diff_to_color(sample, sample_rec.detach(), 'train')
                     '''
                 if e < 1:
-                    self.tensorboard_first_epoch.add_scalar(f"loss in first epoch", self.currentLoss, b)
-
+                    #self.tensorboard_first_epoch.add_scalar(f"loss in first epoch", self.currentLoss, b)
                     self.tensorboard_first_epoch_train.add_scalar(f"loss in first epoch TRAIN", self.currentLoss, b)
                 if b == 0:
                     break
