@@ -30,8 +30,14 @@ class ModelManager:
         else:
             self.network = TCNAutoencoder(args)
 
-            self.optim = torch.optim.Adam(self.network.parameters(),
-                                          lr=args.learning_rate)
+            
+            #-B---
+            params_basis = [*self.network.encoder.parameters(), *self.network.decoder.parameters()]
+            params_adversarial = [*self.network.adversary_decoder.parameters()]
+            
+            self.optim_basis = torch.optim.Adam(params_basis, lr=args.learning_rate)
+            self.optim_adversarial = torch.optim.Adam(params_adversarial, lr=args.learning_rate)
+            #-B---
             self._log(self.network)
 
     def _load_pretrained_model(self, model_name):
@@ -61,14 +67,15 @@ class ModelManager:
                      str(sum(p.numel() for p in network.parameters()
                              if p.requires_grad)))
 
-    def save(self, e, run_identifier, losses, losses_100, name_run, args): 
+    def save(self, e, run_identifier, losses, losses_100, name_run, args, is_adv=False): 
         model_filename = '../models/' + args.signal_type + '-e' + str(e) + '-hz' + str(args.hz) #pos-i3738, i = iteration
         torch.save(
             {
                 'epoch': e,
                 'network': self.network,
                 'model_state_dict': self.network.state_dict(), #a dictionary containing a whole state of the module, contains weights
-                'optimizer_state_dict': self.optim.state_dict(),
+                'optimizer_state_dict': self.optim_basis.state_dict(),
+                'optimizer_state_dict_adv': self.optim_adversarial.state_dict() if is_adv else [], 
                 'losses': losses
             }, model_filename)
         logging.info('Model saved to {}'.format(model_filename))
@@ -88,7 +95,11 @@ class ModelManager:
             "epoch losses train"  : list(losses['train']),
             "epoch losses val"  : list(losses['val']),
             "global losses 100 train" : list(losses_100['train']),
-            "global losses 100 val": list(losses_100['val'])          # losses every 100 batches
+            "global losses 100 val": list(losses_100['val']),          # losses every 100 batches
+            "CEL epoch losses train"  : list(losses['CELtrain']) if is_adv else [],
+            "CEL epoch losses val"  : list(losses['CELval']) if is_adv else [],
+            "CEL global losses 100 train" : list(losses_100['CELtrain']) if is_adv else [],
+            "CEL global losses 100 val": list(losses_100['CELval'] if is_adv else []) 
         }
 
         jsonFile = json.dumps(params) #was .dump()

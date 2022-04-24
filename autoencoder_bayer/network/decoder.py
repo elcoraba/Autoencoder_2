@@ -1,10 +1,12 @@
 import logging
 
-from numpy import random, arange
-from torch import nn, cat, zeros, device, cuda
+from numpy import random, arange, swapaxes
+from torch import classes, nn, cat, zeros, device, cuda
 
 from .encoder import ResidualBlock
 from settings import *
+
+from collections import OrderedDict
 
 random.seed(RAND_SEED)
 
@@ -49,8 +51,7 @@ class CausalDecoder(nn.Module):
             )
 
             if block_num % 2 == 0:
-                self.latent_projections.append(
-                    nn.Linear(latent_dim, f))
+                self.latent_projections.append(nn.Linear(latent_dim, f))
             else:
                 self.latent_projections.append(None)
 
@@ -100,6 +101,25 @@ class CausalBlock(ResidualBlock):
             out = self.bn2(out)
         return out
 
+#-B---
+# TODO DECODER adv: 3 linear layer, z as input, RELU, evtl one hot encoding
+class AdversaryDecoder(nn.Module):
+    def __init__(self, args):
+        super(AdversaryDecoder, self).__init__()
+        self.adv_model = nn.Sequential(OrderedDict([
+            ('linear1', nn.Linear(64, 500)), ('relu1', nn.ReLU()),
+            ('linear2', nn.Linear(500, 200)), ('relu2', nn.ReLU()), 
+            ('final_linear', nn.Linear(200, 6))
+        ]))# output should be bsx6
+        # classes: 30 60 120 250 500 1000 -> 6
+        # das ist dann schon das one-hot encoding, brauche es also nicht nochmal extra
+
+    def forward(self, z):
+        # z shape: torch.Size([204, 64]) ((bs * 2) 80% x 64)
+        out = self.adv_model(z) #out: torch.float32
+        # torch.Size([204, 6]) (bs x 6)
+        return out
+#-B---
 
 class AutoregressiveDecoder(nn.Module):
     def __init__(self, args, kernel_size, filters, dilations, latent_dim):

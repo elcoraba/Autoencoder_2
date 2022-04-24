@@ -36,6 +36,9 @@ RAND_SEED = 123
 #-B----
 TRAIN_NUM_EPOCHS = 1000
 TRAIN_SAVE_LOSS_EVERY_X_BATCHES = 100
+
+#For adversarial training
+ADV_TRAIN_NUM_EPOCHS = 25
 #-B----
 
 

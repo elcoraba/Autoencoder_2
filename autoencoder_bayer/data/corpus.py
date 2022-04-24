@@ -218,7 +218,7 @@ class EyeTrackingCorpus:
             #print(div.shape)
             self.data['v'] = self.data['v'].divide(div) # TODO stack und abs entfernen?
             #TODO Try to scale the velocity values up
-            #self.data['v'] = self.data['v'] * 100           
+            self.data['v'] = self.data['v'] * 100           
 
             ####FIFA
             #v: [[0.0, 0.000996946495305795], [0.0005607824036... (3200,0), v[0].shape = (2020,2) (cols, rows)
