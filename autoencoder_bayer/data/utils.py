@@ -106,7 +106,9 @@ def upsample_between_timestamp_pairs(trial, new_points, step):
     return trial
 
 def calcHz(timestep):
-    df = pd.DataFrame(timestep, columns= ['vals'])            
+    if type(timestep) == pd.core.series.Series:
+        timestep = timestep.to_numpy(dtype = 'float64')
+    df = pd.DataFrame(timestep, columns= ['vals'])           
     temp = df[df.columns[0]]
     diff = temp.diff().mean() 
     calcHz = (1/diff) * 1000

@@ -169,7 +169,7 @@ class CSVAE:
                 if (b+1) % TRAIN_SAVE_LOSS_EVERY_X_BATCHES == 0:
                     mean_loss = self.running_loss_100['train'] / TRAIN_SAVE_LOSS_EVERY_X_BATCHES
                     self.global_losses_100['train'][counter_100] = mean_loss                       #e*len(self.dataloader) + b
-                    self.tensorboard_train.add_scalar(f"MSE loss_per_{TRAIN_SAVE_LOSS_EVERY_X_BATCHES} batches", mean_loss, counter_100)
+                    self.tensorboard_train.add_scalar(f"loss_per_{TRAIN_SAVE_LOSS_EVERY_X_BATCHES} batches", mean_loss, counter_100)
                     #---
                     CELmean_loss = self.running_loss_100['CELtrain'] / TRAIN_SAVE_LOSS_EVERY_X_BATCHES
                     self.global_losses_100['CELtrain'][counter_100] = CELmean_loss                       
@@ -207,8 +207,8 @@ class CSVAE:
             if (e + 1) % 1 == 0: #TODO 10
                 print('---------------------Evaluation---------------------')
                 #@thomas classifier bekommt nur w?
-                self.evaluate_representation(sample, sample_rec, e, self.tensorboard_acc_train)
-                self.evaluate_representation(sample_v, sample_rec_v, e, self.tensorboard_acc_val)
+                self.evaluate_representation(sample, sample_rec, e, self.tensorboard_acc_train, True)
+                self.evaluate_representation(sample_v, sample_rec_v, e, self.tensorboard_acc_val, False)
 
                 
             self.logB(e, 'val') 
@@ -264,7 +264,7 @@ class CSVAE:
         #tensor_labels for 500Hz: 4 (index) (0 0 0 0 1 0 (classes: 30 60 120 250 500 1000))
         tensor_labels = torch.tensor(self.getLabel(self.hz), dtype = int)
         tensor_labels = tensor_labels.repeat(out_adversary.shape[0])        #bs 128: torch.Size([204]) # tensor([4, 4, 4, 4, ....
-        loss_adv = self.loss_adv(out_adversary, tensor_labels) # input w?
+        loss_adv = self.loss_adv(out_adversary, tensor_labels) # input w? #TODO tensor_labels.cuda() 
         self.running_loss[str('CEL' + dset)] += loss_adv.item()
         self.currentLoss['CEL'] = loss_adv
         
@@ -293,7 +293,7 @@ class CSVAE:
 
         ###############################################################################################################    
 
-    def evaluate_representation(self, sample, sample_rec, i, tensorboard_acc):
+    def evaluate_representation(self, sample, sample_rec, i, tensorboard_acc, do_eval):
         if sample is not None:
             viz = visualize_reconstruction(
                 sample, sample_rec,
@@ -311,13 +311,14 @@ class CSVAE:
                                             figure=viz,
                                             global_step=i)
 
-        self.evaluator.extract_representations(i, log_stats=False) #was true
-        scores = self.evaluator.evaluate(i)
-        if tensorboard_acc:
-            for task, classifiers in scores.items():
-                for classifier, acc in classifiers.items():
-                    tensorboard_acc.add_scalar(
-                        '{}_{}_acc'.format(task, classifier), acc, i)
+        if do_eval:
+            self.evaluator.extract_representations(i, log_stats=False) #was true
+            scores = self.evaluator.evaluate(i)
+            if tensorboard_acc:
+                for task, classifiers in scores.items():
+                    for classifier, acc in classifiers.items():
+                        tensorboard_acc.add_scalar(
+                            '{}_{}_acc'.format(task, classifier), acc, i)
 
     
     

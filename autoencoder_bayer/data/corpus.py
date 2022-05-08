@@ -107,22 +107,24 @@ class EyeTrackingCorpus:
             
             #clip: Given an interval, values outside the interval are clipped to the interval edges
             #print('0 ', trial.y[0:10])                                                                                #0  ... 484.74 482.94    nan    nan 572.74 573.02 591.9     nan ...
-            trial.x = np.clip(trial.x, a_min=self.min_x, a_max= self.max_x)
-            trial.y = np.clip(trial.y, a_min=self.min_y, a_max= self.max_y)
+            ##trial.x = np.clip(trial.x, a_min=self.min_x, a_max= self.max_x)
+            ##trial.y = np.clip(trial.y, a_min=self.min_y, a_max= self.max_y)
             #print('1 ', trial.y)                                                                                #1  ... 484.74 482.94    nan    nan 572.74 573.02 591.9     nan ... 
             #print(np.nanmin(trial.y))                                                                           #425.1
             #print(np.nanmax(trial.y))                                                                           #591.9                                                                          
-            trial.x = trial.x - np.nanmin(trial.x) #+ abs(np.nanmin(trial.x)) #-> immer größer 0 dann
-            trial.y = trial.y - np.nanmin(trial.y) #+ abs(np.nanmin(trial.y))
+            trial.x = trial.x - self.min_x #-> immer größer 0 dann
+            trial.y = trial.y - self.min_y
             #print('2 ', trial.y[0:10])                                                                                #2  ... 59.64  57.84     nan    nan 147.64 147.92 166.8     nan ...
-            trial.x = trial.x / np.nanmax(trial.x) #->  dann immer zwischen 0 und 1,  # Clip x and y values between 0 and 1
-            trial.y = trial.y / np.nanmax(trial.y)
+            trial.x = trial.x / self.max_x #->  dann immer zwischen 0 und 1,  # Clip x and y values between 0 and 1
+            trial.y = trial.y / self.max_y
             #print('3 ', trial.y[0:10])                                                                                #3 ... 0.35755396 0.34676259        nan nan 0.88513189 0.88681055 1.                nan ... 
-            
+            trial.x = np.clip(trial.x, a_min = -1, a_max = 2)
+            trial.y = np.clip(trial.y, a_min = -1, a_max = 2)
+
             ######## just to be sure
             #(vel NN): hab das eingerückt, das sonst zB minus Werte bei EMVIC, auf Nan gesetzt werden
-            trial.x[np.where(trial.x < 0)] = float("nan") # was = 0
-            trial.y[np.where(trial.y < 0)] = float("nan")
+            ##trial.x[np.where(trial.x < 0)] = float("nan") # was = 0
+            ##trial.y[np.where(trial.y < 0)] = float("nan")
             #print('4 ', trial.y[0:10]) 
                 
             x_nan = np.isnan(trial.x)                   
@@ -163,8 +165,8 @@ class EyeTrackingCorpus:
             # As we just do the clipping when we have 'pos' here would faults appear when when don't include the if
             #if self.signal_type == 'pos':
             
-            assert np.all(trial.x >= 0) and np.all(trial.x <= 1), 'Problem! A x-Value in the dataset is not between 0 and 1'   + 'Trial: ' + trial.subj + ' Stimulus: ' + trial.stim + ' Value below 0: ' + str(np.argwhere(trial.x < 0)) + ' ' + str(trial.y[np.argwhere(trial.x < 0)]) + ' Value above 1: ' + str(np.argwhere(trial.x > 1)) + ' ' + str(trial.y[np.argwhere(trial.x > 1)])
-            assert np.all(trial.y >= 0) and np.all(trial.y <= 1), 'Problem! A y-Value in the dataset is not between 0 and 1: ' + 'Trial: ' + trial.subj + ' Stimulus: ' + trial.stim + ' Value below 0: ' + str(np.argwhere(trial.y < 0)) + ' ' + str(trial.y[np.argwhere(trial.y < 0)]) + ' Value above 1: ' + str(np.argwhere(trial.y > 1)) + ' ' + str(trial.y[np.argwhere(trial.y > 1)])      
+            assert np.all(trial.x >= -1) and np.all(trial.x <= 2), 'Problem! A x-Value in the dataset is not between -1 and 2'   + 'Trial: ' + trial.subj + ' Stimulus: ' + trial.stim + ' Value below 0: ' + str(np.argwhere(trial.x < 0)) + ' ' + str(trial.y[np.argwhere(trial.x < 0)]) + ' Value above 1: ' + str(np.argwhere(trial.x > 1)) + ' ' + str(trial.y[np.argwhere(trial.x > 1)])
+            assert np.all(trial.y >= -1) and np.all(trial.y <= 2), 'Problem! A y-Value in the dataset is not between -1 and 2: ' + 'Trial: ' + trial.subj + ' Stimulus: ' + trial.stim + ' Value below 0: ' + str(np.argwhere(trial.y < 0)) + ' ' + str(trial.y[np.argwhere(trial.y < 0)]) + ' Value above 1: ' + str(np.argwhere(trial.y > 1)) + ' ' + str(trial.y[np.argwhere(trial.y > 1)])      
             #-B---  
             
             #-B----
@@ -178,8 +180,8 @@ class EyeTrackingCorpus:
 
             #-B----
             #Do assert again, just to be sure up or downsampling didn't do something crazy
-            assert np.all(trial.x >= 0) and np.all(trial.x <= 1), 'Problem! A x-Value in the dataset is not between 0 and 1'   + 'Trial: ' + trial.subj + ' Stimulus: ' + trial.stim + ' Value below 0: ' + str(np.argwhere(trial.x < 0)) + ' Value above 1: ' + str(np.argwhere(trial.x > 1))
-            assert np.all(trial.y >= 0) and np.all(trial.y <= 1), 'Problem! A y-Value in the dataset is not between 0 and 1: ' + 'Trial: ' + trial.subj + ' Stimulus: ' + trial.stim + ' Value below 0: ' + str(np.argwhere(trial.y < 0)) + ' Value above 1: ' + str(np.argwhere(trial.y > 1))       
+            assert np.all(trial.x >= -1) and np.all(trial.x <= 2), 'Problem! A x-Value in the dataset is not between -1 and 2'   + 'Trial: ' + trial.subj + ' Stimulus: ' + trial.stim + ' Value below 0: ' + str(np.argwhere(trial.x < 0)) + ' Value above 1: ' + str(np.argwhere(trial.x > 1))
+            assert np.all(trial.y >= -1) and np.all(trial.y <= 2), 'Problem! A y-Value in the dataset is not between -1 and 2: ' + 'Trial: ' + trial.subj + ' Stimulus: ' + trial.stim + ' Value below 0: ' + str(np.argwhere(trial.y < 0)) + ' Value above 1: ' + str(np.argwhere(trial.y > 1))       
             #-B----
             
             return trial
@@ -233,6 +235,7 @@ class EyeTrackingCorpus:
 
         if sum(x_nan_idx)> 0 or sum(y_nan_idx)> 0:
             print('Still Nans ############################################ ')
+            input('Still Nans left. Press Enter to continue...')
             idx = (x_nan_idx | y_nan_idx)
             self.data['x'] = self.data['x'][~idx]
             self.data['y'] = self.data['y'][~idx]   

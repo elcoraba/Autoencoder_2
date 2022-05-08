@@ -260,8 +260,10 @@ class Trainer:
         if self.model.network.training:
             self.running_loss_100[dset] += loss.item()
             loss.backward()
-            self.model.optim.step()
-            self.model.optim.zero_grad()
+            #self.model.optim.step()
+            #self.model.optim.zero_grad()
+            self.model.optim_basis.step()
+            self.model.optim_basis.zero_grad()
 
         rand_idx = np.random.randint(0, batch.shape[0])
         return batch[rand_idx].cpu(), reconstructed_batch[rand_idx].cpu()
