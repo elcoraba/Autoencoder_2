@@ -32,8 +32,15 @@ class EyeTrackingCorpus:
         self.name = self.__class__.__name__
         self.dir = GENERATED_DATA_ROOT + self.name
         self.data = None
+        
+        #B#########
+        self.is_adv = False
+        ##########
 
-    def load_data(self, load_labels=False):
+    def load_data(self, load_labels=False, is_adv=False):
+        #B#########
+        self.is_adv = is_adv
+        ##########
         logging.info('\n---- Loading {} data set with {}-sliced {} signals...'.format(
             self.name, self.slice_time_windows, self.signal_type))
         if self.slice_time_windows:
@@ -172,11 +179,25 @@ class EyeTrackingCorpus:
             #-B----
             trial = self.validate_data(trial)
             #-B----
+            if self.is_adv:
+                balancedSR = self.getBalancedSamplingRate()
+                if self.hz > balancedSR:
+                    self.resample = 'down'
+                elif self.hz < balancedSR:
+                    self.resample = 'up'
+                else: #If balancedSR == self.hz, no up or downsampling is needed 
+                    self.resample = None
 
-            if self.resample == 'down':
-                trial = du.downsample(trial, self.effective_hz, self.hz)
-            elif self.resample == 'up':
-                trial = du.upsample(trial, self.effective_hz, self.hz)
+                if self.resample == 'down':
+                    trial = du.downsample(trial, balancedSR, self.hz)
+                elif self.resample == 'up':
+                    trial = du.upsample(trial, balancedSR, self.hz)
+            # For normal training    
+            else: 
+                if self.resample == 'down':
+                    trial = du.downsample(trial, self.effective_hz, self.hz)
+                elif self.resample == 'up':
+                    trial = du.upsample(trial, self.effective_hz, self.hz)
 
             #-B----
             #Do assert again, just to be sure up or downsampling didn't do something crazy
@@ -189,17 +210,21 @@ class EyeTrackingCorpus:
         sample_limit = (int(self.hz * self.viewing_time)
                         if self.viewing_time > 0
                         else None)
-
-        if (self.hz - self.effective_hz) > 10:
-            self.resample = 'down'
-            logging.info('Will downsample {} to {}.'.format(
-                self.hz, self.effective_hz))
-        elif (self.effective_hz - self.hz) > 10:
-            self.resample = 'up'
-            logging.info('Will upsample {} to {}.'.format(
-                self.hz, self.effective_hz))
-        else:
-            self.resample = None
+                
+        ############################################################
+        # For normal training
+        if self.is_adv == False:
+            if (self.hz - self.effective_hz) > 10:
+                self.resample = 'down'
+                logging.info('Will downsample {} to {}.'.format(
+                    self.hz, self.effective_hz))
+            elif (self.effective_hz - self.hz) > 10:
+                self.resample = 'up'
+                logging.info('Will upsample {} to {}.'.format(
+                    self.hz, self.effective_hz))
+            else:
+                self.resample = None
+        ############################################################
 
         self.data = self.data.apply(preprocess, 1)
         ''' OLD vel calc
@@ -347,6 +372,14 @@ class EyeTrackingCorpus:
             #    np.savetxt(f"FIFA_holes_subj {trial['subj']}_stim {trial['stim']}_xy_afterHoleFilling_linear.csv", list(zip(trial['timestep'], trial['x'], trial['y'])), delimiter=',',header ='t,x,y')
         
         return trial
+
+    def getBalancedSamplingRate(self):
+        samplingRates = [30, 60, 120, 250, 500, 1000]
+        chosenSamplingRate = np.random.choice(samplingRates, 1)
+
+        return chosenSamplingRate
+
+
 
 
 

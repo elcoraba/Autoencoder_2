@@ -22,7 +22,7 @@ class SignalDataset(Dataset):
     2. pads all the signals to the same length
     3. when used as DataLoader dataset. queries the data from the data sets.
     """
-    def __init__(self, corpora, args, caller='', **kwargs):
+    def __init__(self, corpora, args, caller='', is_adv=False, **kwargs):
         self.signal_type = args.signal_type
         assert self.signal_type in ['vel', 'pos', 'posvel', 'acc']
         self.augment_signal = args.augment
@@ -40,13 +40,16 @@ class SignalDataset(Dataset):
         self.corpora = corpora
 
         assert args.hz > 0
-        self.hz = args.hz
+        self.hz = args.hz       #TODO wieso?
         self.viewing_time = args.viewing_time
         self.num_gaze_points = int(self.hz * self.viewing_time)
         self.train_set, self.val_set, self.test_set = [], [], []
 
+        self.is_adv = is_adv
+        print('Is adv training: ', self.is_adv)
+
         for corpus_name, corpus in self.corpora.items():
-            corpus.load_data()
+            corpus.load_data(is_adv = self.is_adv)
             corpus_samples = ['{}|{}'.format(corpus_name, i)
                               for i in range(len(corpus.data))]
 

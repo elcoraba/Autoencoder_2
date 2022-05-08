@@ -55,8 +55,9 @@ class CSVAE:
         self._init_evaluator()
 
     def _load_data(self):
+        print('Load data')
         self.dataset = SignalDataset(get_corpora(args), args,
-                                     caller='trainer')
+                                     caller='trainer', is_adv=True)
 
         _loader_params = {'batch_size': args.batch_size, 'shuffle': True,
                           'pin_memory': True}
