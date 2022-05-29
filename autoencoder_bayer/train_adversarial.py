@@ -67,7 +67,7 @@ class CSVAE:
 
         self.train_dataloader = DataLoader(self.dataset, **_loader_params)
         self.val_dataloader = (
-            DataLoader(self.dataset.val_set, **_loader_params)
+            DataLoader(self.dataset.val_set, drop_last=True, **_loader_params)
             if self.dataset.val_set else None)
 
     def _init_loss_fn(self, args):
@@ -89,6 +89,7 @@ class CSVAE:
                    AgeGroupBinary(), GenderBinary()],
             ## classifiers='all',
             classifiers=['svm_linear'],
+            is_adv = True,
             args=args, model=self.model,
             # the evaluator should initialize its own dataset if the trainer
             # is using manipulated trials (sliced, transformed, etc.)
@@ -237,8 +238,8 @@ class CSVAE:
         # z_all[0]: bs x features #z_all[0].shape
  
         # divide batch in 80 bzw 20%
-        size_w = int(0.2*len(z_all[0])) + 1      #26    
-        size_z = int(0.8*len(z_all[0]))          #102   
+        size_w = int(0.2*len(z_all[0])) + 1      #26  7  
+        size_z = int(0.8*len(z_all[0]))          #102 25  
         z2_w, z2_z = torch.split(z_all[0], [size_w, size_z])    #z2 w torch.Size([26, 64])  z torch.Size([102, 64])
         z1_w, z1_z = torch.split(z_all[1], [size_w, size_z])    #z1 w torch.Size([26, 64])  z torch.Size([102, 64])
         w = cat([z2_w, z1_w], 0)                                # torch.Size([52, 64])
@@ -265,7 +266,7 @@ class CSVAE:
         #tensor_labels for 500Hz: 4 (index) (0 0 0 0 1 0 (classes: 30 60 120 250 500 1000))
         tensor_labels = torch.tensor(self.getLabel(self.hz), dtype = int)
         tensor_labels = tensor_labels.repeat(out_adversary.shape[0])        #bs 128: torch.Size([204]) # tensor([4, 4, 4, 4, ....
-        loss_adv = self.loss_adv(out_adversary, tensor_labels) # input w? #TODO tensor_labels.cuda() 
+        loss_adv = self.loss_adv(out_adversary, tensor_labels.cuda()) * 1000 # input w? #TODO tensor_labels.cuda() 
         self.running_loss[str('CEL' + dset)] += loss_adv.item()
         self.currentLoss['CEL'] = loss_adv
         
@@ -277,9 +278,9 @@ class CSVAE:
         if self.model.network.training:
             self.running_loss_100[dset] += loss_decX.item()
             self.running_loss_100[str('CEL' + dset)] += loss_adv.item()
-
+            '''
             loss_decX.backward(retain_graph = True)
-            
+            #TODO loss_adv = -loss_adv * 100
             loss_adv.backward()
             #@ Thomas  Wirken sich beide Losse auf encoder aus trotz init.py - params basis/adversarial
             
@@ -288,6 +289,38 @@ class CSVAE:
 
             self.model.optim_adversarial.step()
             self.model.optim_adversarial.zero_grad()
+            '''
+            # https://stackoverflow.com/questions/61788887/updating-based-on-two-different-loss-functions-but-with-a-different-optimizer-l
+            # https://stackoverflow.com/questions/53994625/how-can-i-process-multi-loss-in-pytorch
+            
+            #loss_adv_clone = loss_adv.clone().detach() # shouldn't be detached?
+            #loss_1_sum = torch.zeros_like(loss_decX)
+            # Hier adv_loss miinimieren
+            self.model.optim_adversarial.zero_grad()
+            self.model.optim_basis.zero_grad()
+            #loss_adv = loss_adv
+            loss_adv.backward(retain_graph = True)  #retain_graph?
+            #-------
+            loss_adv_balance = self.loss_adv(out_adversary, tensor_labels.cuda()) * 1000
+            loss_1_sum = loss_decX
+            # Hier adv_loss maximieren
+            # wenn ich das auskommentiere, läuft er
+            loss_adv_negative = - loss_adv_balance            #* 100 macht keinen Unterschied bei ADAM?
+            loss_1_sum = loss_1_sum + loss_adv_negative
+            # CEL + MSE + CEL = MSE
+            
+            # compute gradients of the params wrt the loss
+            loss_1_sum.backward()
+            print(self.model.network.encoder.blocks[-1].conv2[1].weight.grad)
+            exit()
+            # update all the params by substracting the gradients
+            self.model.optim_basis.step()       #decX output
+            self.model.optim_adversarial.step()
+
+            # Ideen
+            # pytorch lightning: tuorial mehrere optimizer
+            # loss_adv_2: loss_adv zweimal berechnen (solves detach problem?)
+            # anderen Optimizer: stochastic gradient decent (*100 *1000 Problem)
 
         rand_idx = np.random.randint(0, batch.shape[0])
         return batch[rand_idx].cpu(), reconstructed_batch[rand_idx].cpu()

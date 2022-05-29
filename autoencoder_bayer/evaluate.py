@@ -26,7 +26,7 @@ manual_seed(RAND_SEED)
 
 
 class RepresentationEvaluator:
-    def __init__(self, tasks, classifiers='all', args=None, **kwargs):
+    def __init__(self, tasks, classifiers='all', is_adv = False, args=None, **kwargs):
         logging.info('\n---------- Initializing evaluator ----------')
 
         #self.save_tsne_plot = args.save_tsne_plot
@@ -40,6 +40,7 @@ class RepresentationEvaluator:
             self.classifiers = list(CLASSIFIER_PARAMS.values())
         else:
             self.classifiers = [CLASSIFIER_PARAMS[c] for c in classifiers]
+        self.is_adv = is_adv
 
         # evaluate while training; use model passed in by trainer
         if 'model' in kwargs:
@@ -139,8 +140,9 @@ class RepresentationEvaluator:
             else:
                 corpora = get_corpora(args)
 
-            datasets[signal_type] = SignalDataset(corpora, args,
+            datasets[signal_type] = SignalDataset(corpora = corpora, args = args,
                                                   # caller='evaluator',
+                                                  #is_adv = True,          # = self.is_adv? #for now, no different sampling rates in evaluation, though need to vary that later to see, how adv performs with differnet s.r. as this shouldn't make any difference, when the adversary did the right Job
                                                   load_to_memory=True,
                                                   **kwargs)
         return datasets

@@ -11,4 +11,6 @@ autoencoder_bayer/runs
 autoencoder_bayer/data/GazeBase
 autoencoder_bayer/runs_accuracy
 autoencoder_bayer/runs_CEL
+autoencoder_bayer/SHOW_accuracy
+autoencoder_bayer/SHOW_runs
 models/*

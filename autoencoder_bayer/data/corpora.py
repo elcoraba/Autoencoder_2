@@ -196,6 +196,7 @@ class EMVIC2014(EyeTrackingCorpus):
         self.max_x = 2000
         self.min_y = -2000
         self.max_y = 2000
+        self.px_per_dva = 35        # no original value could be found. This value is just approximated (but currently not used in preprocssing)
         #-B---
 
         super(EMVIC2014, self).__init__(args)
