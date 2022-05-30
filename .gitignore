@@ -13,4 +13,5 @@ autoencoder_bayer/runs_accuracy
 autoencoder_bayer/runs_CEL
 autoencoder_bayer/SHOW_accuracy
 autoencoder_bayer/SHOW_runs
+autoencoder_bayer/zOLD_files
 models/*

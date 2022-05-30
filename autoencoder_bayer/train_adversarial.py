@@ -164,7 +164,11 @@ class CSVAE:
 
             self.model.network.train()
             for b, batch in enumerate(tqdm(self.train_dataloader, desc = 'Train Batches')):
+                # two forward passes for the two optimizers
+                #print('Forward')
                 sample, sample_rec = self.forward(batch)
+                #print('Forward adv')
+                self.forward_adv(batch)
 
                 #-B----
                 #save running loss 100 and reset it
@@ -220,6 +224,7 @@ class CSVAE:
                 self.model.save(e, run_identifier, self.epoch_losses, self.global_losses_100, run_identifier, args, True)
             
 
+    # forward encoder & decoder
     def forward(self, batch):
         batch = batch.float()
         if self.cuda == True and self.device.type == 'cuda':     #batch = batch.to(self.device)
@@ -256,12 +261,12 @@ class CSVAE:
         
         #loss = MSE(output, target)
         reconstructed_batch = out_decX
-        loss_decX = self.loss_fn(reconstructed_batch, batch).reshape(reconstructed_batch.shape[0], -1).sum(-1).mean()
         # darf nur encoder und decoder_x anpassen dürfen, nicht adversary
+        loss_decX = self.loss_fn(reconstructed_batch, batch).reshape(reconstructed_batch.shape[0], -1).sum(-1).mean()
+        
         self.running_loss[dset] += loss_decX.item()
         self.currentLoss['MSE'] = loss_decX
-
-        #TODO
+        
         #loss = CEL, label - output [self.hz]
         #tensor_labels for 500Hz: 4 (index) (0 0 0 0 1 0 (classes: 30 60 120 250 500 1000))
         tensor_labels = torch.tensor(self.getLabel(self.hz), dtype = int)
@@ -273,50 +278,23 @@ class CSVAE:
         # adversary darf nicht parameter vom encoder & decoder_x ändern können nur vom adversary
         # tasks: sampling rate oder TODO subject
         # get_item: soll auch label mit rausgeben
+        
 
         #update network if we are training
         if self.model.network.training:
             self.running_loss_100[dset] += loss_decX.item()
             self.running_loss_100[str('CEL' + dset)] += loss_adv.item()
-            '''
-            loss_decX.backward(retain_graph = True)
-            #TODO loss_adv = -loss_adv * 100
-            loss_adv.backward()
-            #@ Thomas  Wirken sich beide Losse auf encoder aus trotz init.py - params basis/adversarial
-            
-            self.model.optim_basis.step()       #decX output
+           
+            # Hier adv_loss minimieren
             self.model.optim_basis.zero_grad()
-
-            self.model.optim_adversarial.step()
-            self.model.optim_adversarial.zero_grad()
-            '''
-            # https://stackoverflow.com/questions/61788887/updating-based-on-two-different-loss-functions-but-with-a-different-optimizer-l
-            # https://stackoverflow.com/questions/53994625/how-can-i-process-multi-loss-in-pytorch
-            
-            #loss_adv_clone = loss_adv.clone().detach() # shouldn't be detached?
-            #loss_1_sum = torch.zeros_like(loss_decX)
-            # Hier adv_loss miinimieren
-            self.model.optim_adversarial.zero_grad()
-            self.model.optim_basis.zero_grad()
-            #loss_adv = loss_adv
-            loss_adv.backward(retain_graph = True)  #retain_graph?
-            #-------
-            loss_adv_balance = self.loss_adv(out_adversary, tensor_labels.cuda()) * 1000
-            loss_1_sum = loss_decX
-            # Hier adv_loss maximieren
-            # wenn ich das auskommentiere, läuft er
-            loss_adv_negative = - loss_adv_balance            #* 100 macht keinen Unterschied bei ADAM?
-            loss_1_sum = loss_1_sum + loss_adv_negative
-            # CEL + MSE + CEL = MSE
-            
-            # compute gradients of the params wrt the loss
-            loss_1_sum.backward()
-            print(self.model.network.encoder.blocks[-1].conv2[1].weight.grad)
-            exit()
-            # update all the params by substracting the gradients
+            loss_combo = loss_decX + (- loss_adv)
+            #print('loss combo: ', loss_decX, '-', loss_adv, '=', loss_combo)
+            loss_combo.backward()
             self.model.optim_basis.step()       #decX output
-            self.model.optim_adversarial.step()
-
+           
+            #TODO * 100 macht keinen Unterschied bei ADAM?
+            #print(self.model.network.encoder.blocks[-1].conv2[1].weight.grad)
+            
             # Ideen
             # pytorch lightning: tuorial mehrere optimizer
             # loss_adv_2: loss_adv zweimal berechnen (solves detach problem?)
@@ -325,7 +303,46 @@ class CSVAE:
         rand_idx = np.random.randint(0, batch.shape[0])
         return batch[rand_idx].cpu(), reconstructed_batch[rand_idx].cpu()
 
-        ###############################################################################################################    
+        ############################################################################################################### 
+        # forward just for adverserial part
+    def forward_adv(self, batch):
+        batch = batch.float()
+        if self.cuda == True and self.device.type == 'cuda': 
+            batch = batch.cuda()
+
+        dset = 'train' if self.model.network.training else 'val'
+
+        #ENCODING
+        z_all, mean, logvar = self.model.network.encode(batch, cat_output=False) 
+ 
+        # divide batch in 80 bzw 20%
+        size_w = int(0.2*len(z_all[0])) + 1       
+        size_z = int(0.8*len(z_all[0]))            
+        z2_w, z2_z = torch.split(z_all[0], [size_w, size_z])    
+        z1_w, z1_z = torch.split(z_all[1], [size_w, size_z])    
+        w = cat([z2_w, z1_w], 0)                                
+        z = cat([z2_z, z1_z], 0)                               
+        
+        out_adversary = self.model.network.adversary_decoder(z)
+
+        tensor_labels = torch.tensor(self.getLabel(self.hz), dtype = int)
+        tensor_labels = tensor_labels.repeat(out_adversary.shape[0])        
+        loss_adv = self.loss_adv(out_adversary, tensor_labels.cuda()) #TODO auch? * 1000 
+        
+        # adversary darf nicht parameter vom encoder & decoder_x ändern können nur vom adversary
+        # tasks: sampling rate oder TODO subject
+        # get_item: soll auch label mit rausgeben
+        
+
+        #update network if we are training
+        if self.model.network.training:
+            # Hier adv_loss minimieren
+            self.model.optim_adversarial.zero_grad()
+            # compute gradients of the params wrt the loss
+            loss_adv.backward()
+            # update all the params by substracting the gradients
+            self.model.optim_adversarial.step()
+
 
     def evaluate_representation(self, sample, sample_rec, i, tensorboard_acc, do_eval):
         if sample is not None:
