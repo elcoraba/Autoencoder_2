@@ -95,6 +95,7 @@ class ETRA2019(EyeTrackingCorpus):
 
         #-B---
         self.timestep = []
+        self.balancedHz = -1
         self.step = 2 # 1000Hz/500Hz
         # needed for preprocessing as we don't have self.w self.h for all datasets
         self.min_x = 0
@@ -131,15 +132,17 @@ class ETRA2019(EyeTrackingCorpus):
                 self.timestep = csv['Time'] - csv['Time'][0]                           #-firstTimestamp 0, 2, 4, 6...
                 x = ((csv['LXpix'] + csv['RXpix']) / 2)                                 #XPos in pixeln #float64
                 y = ((csv['LYpix'] + csv['RYpix']) / 2)
+                self.balancedHz = getBalancedSamplingRate()
                 #-B---
-                #subj, stim, task, timestep, x, y
+                #subj, stim, task, timestep, x, y, balancedSR
                 data.append([
                     subj,                                                               #009
                     '/'.join([stim_folder, stim_file.replace('csv', 'bmp')]),           #NATURAL/
                     task,                                                               #Natural_free_viewing
                     self.timestep,
                     x.to_list(),                      
-                    y.to_list()
+                    y.to_list(),
+                    [self.balancedHz]
                 ])
         '''
         a = np.array(data) 
@@ -197,6 +200,8 @@ class EMVIC2014(EyeTrackingCorpus):
         self.min_y = -2000
         self.max_y = 2000
         self.px_per_dva = 35        # no original value could be found. This value is just approximated (but currently not used in preprocssing)
+        self.timestep = []
+        self.balancedHz = -1
         #-B---
 
         super(EMVIC2014, self).__init__(args)
@@ -221,6 +226,12 @@ class EMVIC2014(EyeTrackingCorpus):
                 y = list(map(float, trial[3::2]))                   #skippe ersten 3 Elems, dann nehme jedes zweite
                 #-B---
                 self.timestep = np.arange(0,len(x),self.step)       #length varies! No timestep Info available
+                self.balancedHz = getBalancedSamplingRate()
+                #temp = getBalancedSamplingRate()
+                #self.balancedHz = [temp] * len(x)
+                #print('corpus numpy: ', np.array(x).shape)
+                #print(np.array(self.balancedHz).shape)
+                
                 #-B---
                 data.append([
                     trial[0] if split == 'train' else 'test-' + trial[0], # + str(i),
@@ -230,7 +241,8 @@ class EMVIC2014(EyeTrackingCorpus):
                     # normalize so that (0, 0) is upper left of screen
                     # Removed as Thomas does not like it
                     x, #- np.min(x),                                  #e.g. -217,58       #659.72 - (-321.11) = 980.83
-                    y #- np.min(y)
+                    y, #- np.min(y)
+                    [self.balancedHz]
                 ])
                   
         #print(data[0])     # ['s3', '', 'face', array([   0,    1,    2, ..., 1632, 1633, 1634]), array([980.83, 980.08, 977.08, ...,   4.5 ,   4.5 ,   4.5 ]), array([1183.51, 1186.06, 1189.87, ...,  122.03,  123.31,  127.12])]
@@ -301,6 +313,7 @@ class Cerf2007_FIFA(EyeTrackingCorpus):
         ]
         #-B---
         self.timestep = []
+        self.balancedHz = -1
         self.step = 1 #1000 ms / sampling rate, WIKI: frequenz
          # needed for preprocessing as we don't have self.w self.h for all datasets
         self.min_x = 0
@@ -344,6 +357,7 @@ class Cerf2007_FIFA(EyeTrackingCorpus):
                     #-B---
                     x = list(eye_data['scan_x'].item())
                     y = list(eye_data['scan_y'].item())
+                    self.balancedHz = getBalancedSamplingRate()
 
                     data.append([
                         subj,
@@ -351,7 +365,8 @@ class Cerf2007_FIFA(EyeTrackingCorpus):
                         task,
                         self.timestep,
                         x,
-                        y
+                        y,
+                        [self.balancedHz]
                     ])
             # TO-DO: for the 2nd phase, need to filter out probe image data
         '''       
@@ -363,3 +378,9 @@ class Cerf2007_FIFA(EyeTrackingCorpus):
         '''
         #['CH', '0001.jpg', 'free-viewing', array([   0,    1,    2, ..., 2018, 2019, 2020]), [506.3, 506.2 ...], [373.5, 373.1,...]]
         return np.array(data)
+
+def getBalancedSamplingRate():
+    samplingRates = [30, 60, 120, 250, 500, 1000]
+    chosenSamplingRate = np.random.choice(samplingRates, 1)
+
+    return int(chosenSamplingRate)

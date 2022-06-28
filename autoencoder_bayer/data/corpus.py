@@ -68,7 +68,7 @@ class EyeTrackingCorpus:
         if not path.exists(data_file):
             extract_start = time.time()
             self.data = pd.DataFrame(
-                columns=['subj', 'stim', 'task', 'timestep', 'x', 'y'],
+                columns=['subj', 'stim', 'task', 'timestep', 'x', 'y', 'balancedHz'],
                 data=self.extract())
             self.data.x = self.data.x.apply(lambda a: np.array(a))
             self.data.y = self.data.y.apply(lambda a: np.array(a))
@@ -179,25 +179,27 @@ class EyeTrackingCorpus:
             #-B----
             trial = self.validate_data(trial)
             #-B----
+            
             if self.is_adv:
-                balancedSR = self.getBalancedSamplingRate()
-                if self.hz > balancedSR:
+                if self.hz > trial.balancedHz[0]:
                     self.resample = 'down'
-                elif self.hz < balancedSR:
+                elif self.hz < trial.balancedHz[0]:
                     self.resample = 'up'
                 else: #If balancedSR == self.hz, no up or downsampling is needed 
                     self.resample = None
 
                 if self.resample == 'down':
-                    trial = du.downsample(trial, balancedSR, self.hz)
+                    trial = du.downsample(trial, trial.balancedHz[0], self.hz)
                 elif self.resample == 'up':
-                    trial = du.upsample(trial, balancedSR, self.hz)
+                    trial = du.upsample(trial, trial.balancedHz[0], self.hz)
             # For normal training    
             else: 
                 if self.resample == 'down':
                     trial = du.downsample(trial, self.effective_hz, self.hz)
                 elif self.resample == 'up':
                     trial = du.upsample(trial, self.effective_hz, self.hz)
+
+            ##TODOOO?: self.hz = balancedSR
 
             #-B----
             #Do assert again, just to be sure up or downsampling didn't do something crazy
@@ -212,6 +214,9 @@ class EyeTrackingCorpus:
                         else None)
                 
         ############################################################
+        # [subj stim task x y balancedHz]
+        #print(self.data.shape)         #(x,7)
+        
         # For normal training
         if self.is_adv == False:
             if (self.hz - self.effective_hz) > 10:
@@ -281,9 +286,15 @@ class EyeTrackingCorpus:
                 if self.signal_type == 'vel':
                     copy.x = trial.v[slice_start: slice_start + self.slice_length, 0]
                     copy.y = trial.v[slice_start: slice_start + self.slice_length, 1]
+                    #----
+                    copy.balancedHz = trial.balancedHz      #just one value
+                    #----
                 else:
                     copy.x = trial.x[slice_start: slice_start + self.slice_length]
                     copy.y = trial.y[slice_start: slice_start + self.slice_length]
+                    #----
+                    copy.balancedHz = trial.balancedHz
+                    #----
 
                 # the slice should at least be half as long as the slice length
                 if slice_start == 0 or len(copy.x) >= int(self.slice_length / 2):
@@ -307,20 +318,41 @@ class EyeTrackingCorpus:
             chunk_start = 0
             while chunk_start < len(df):
                 chunk = df.iloc[chunk_start: chunk_start + chunk_size]
+                #---
+                #ETRA: chunk['x'] == pandas Series                
+                #print(chunk.info(verbose = True))
+                #series.loc[:] = 5 * series[:]-> needs to be list/[]
+
+                trialLengths = np.array(list(map(lambda x: len(x), chunk['x'].to_numpy())))
+                temp = chunk['balancedHz'].to_numpy() * trialLengths 
+                chunk['balancedHz'] = temp
+                
+                '''
+                OLD version :
+                temp = np.stack(chunk.apply(
+                        lambda x: du.pad(self.slice_length,
+                                     np.stack(x[['x', 'y']]).T), 1))
+                '''
                 yield np.stack(chunk.apply(
                     lambda x: du.pad(self.slice_length,
-                                     np.stack(x[['x', 'y']]).T), 1))
+                                     np.stack(x[['x', 'y', 'balancedHz']]).T), 1)) 
+                '''
+                [array([[[3.7500e-02, 1.2750e-01, 1.0000e+03],
+                [1.5000e-01, 1.9050e-01, 1.0000e+03], ...
+                '''
                 chunk_start += chunk_size
+            
 
         slices_df = self.slice_trials()
 
         # prepare hdf5 file. maxshape is resizable.
         data_dim = self.slice_length
         hdf5_file = h5py.File(self.hdf5_fname + '.hdf5', 'w')
-
+        
+        # x y (2341, 2000, 2) -> x y balancedHz (2341, 2000, 3)
         hdf5_dataset = hdf5_file.create_dataset(
-            'slices', (1, data_dim, 2),
-            maxshape=(None, data_dim, 2))
+            'slices', (1, data_dim, 3),     #was 2
+            maxshape=(None, data_dim, 3))   #was 2
 
         # process the raw slices then write to file by chunks
         for slice_chunk in iter_slice_chunks(slices_df):
@@ -373,12 +405,7 @@ class EyeTrackingCorpus:
         
         return trial
 
-    def getBalancedSamplingRate(self):
-        samplingRates = [30, 60, 120, 250, 500, 1000]
-        chosenSamplingRate = np.random.choice(samplingRates, 1)
-
-        return chosenSamplingRate
-
+   
 
 
 

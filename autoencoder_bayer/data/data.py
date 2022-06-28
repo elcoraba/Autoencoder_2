@@ -52,14 +52,17 @@ class SignalDataset(Dataset):
             corpus.load_data(is_adv = self.is_adv)
             corpus_samples = ['{}|{}'.format(corpus_name, i)
                               for i in range(len(corpus.data))]
+              
+            #print(corpus.data) # (7772, 1000, 3)
 
             if not args.slice_time_windows or kwargs.get('load_to_memory'):
-                signal = self._get_signal(corpus.data)
-
+                # here when evaluator is loaded
+                signal = self._get_signal(corpus.data)[0]
                 corpus.data[self.input_column] = signal
                 corpus.data.drop(['x', 'y'], axis=1, inplace=True)
 
             if self.split_to_val:
+                # here when datasets are loaded at the beginning
                 train, val = train_test_split(
                     corpus_samples, test_size = 0.2, random_state=RAND_SEED)#test_size=50
             else:
@@ -83,6 +86,7 @@ class SignalDataset(Dataset):
         logging.info('Validation samples: {}'.format(len(self.val_set)))
 
     def _get_signal(self, df):
+        # get in here when evaluator is loaded
         if self.signal_type == 'vel':
             signal = df['v']
 
@@ -104,20 +108,36 @@ class SignalDataset(Dataset):
         if self.num_gaze_points > 0:
             signal = signal.apply(lambda x: pad(self.num_gaze_points, x))
 
-        return signal
+       
+        return signal, df['balancedHz']
 
-    def __getitem__(self, i):
+    #fetching a data sample for a given key
+    #returned values are taken as values for a called batch during the forward()
+    def __getitem__(self, i):       
         corpus, idx = self.train_set[i].split('|')
         data = self.corpora[corpus].data
+        #print('data[0]', data[int(idx)]) # [[2.65e-02 4.05e-02 1.00e+03] ...
 
         if type(data) == pd.DataFrame:
+            assert False, 'data.py - if type(data) == pd.DataFrame, need to include x y vs label'
+            #TODO
+            #print('##################################')
+            #print(data.iloc[int(idx)][self.input_column])
+            #print(data.iloc[int(idx)][self.input_column][:,:-1])
+            #print(data.iloc[int(idx)][self.input_column][:,-1])
             signal = data.iloc[int(idx)][self.input_column]
-        else:  # saved time slices
-            signal = data[int(idx)]
+        # when loading data for batches: EMVIC, FIFA and ETRA
+        else:  # saved time slices from corpus.py - iter_slice_chunks()
+            #signal = data[int(idx)]
+            # x & y values
+            signal = data[int(idx)][:,:-1]  # all but last column
+            # Herz Value
+            labelHz = data[int(idx)][:,-1] # last column
             if self.normalize and self.signal_type != 'vel':
                 signal = self.normalize_sample(signal)
-
-        return signal.T
+       
+        return signal.T, labelHz.T
+        ##return signal.T, randomSR# TODO: , Herz -> astype(long) -> sind Kategorien -> direkt in CEL reingeben
 
     def __len__(self):
         return len(self.train_set)
@@ -131,6 +151,13 @@ class SignalDataset(Dataset):
         sample.x /= MAX_X_RESOLUTION
         sample.y /= MAX_Y_RESOLUTION
         return np.array([sample.x, sample.y]).T
+
+    def getBalancedSamplingRate(self):
+        samplingRates = [30, 60, 120, 250, 500, 1000]
+        chosenSamplingRate = np.random.choice(samplingRates, 1)
+
+        return chosenSamplingRate
+
 
 
 class SignalDataset_Val(SignalDataset):

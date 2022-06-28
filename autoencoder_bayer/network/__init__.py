@@ -29,12 +29,18 @@ class ModelManager:
         #erstelle Netzwerk
         else:
             self.network = TCNAutoencoder(args)
-
             
             #-B---
             params_basis = [*self.network.encoder.parameters(), *self.network.decoder.parameters()]
             params_adversarial = [*self.network.adversary_decoder.parameters()]
             
+            # RMSprop optimizer
+            #self.optim_basis = torch.optim.RMSprop(params_basis, lr=args.learning_rate)
+            #self.optim_adversarial = torch.optim.RMSprop(params_adversarial, lr=args.learning_rate)
+            # SGD optimizer
+            #self.optim_basis = torch.optim.SGD(params_basis, lr=args.learning_rate)
+            #self.optim_adversarial = torch.optim.SGD(params_adversarial, lr=args.learning_rate)
+            # ADAM optimizer
             self.optim_basis = torch.optim.Adam(params_basis, lr=args.learning_rate)
             self.optim_adversarial = torch.optim.Adam(params_adversarial, lr=args.learning_rate)
             #-B---
@@ -62,7 +68,7 @@ class ModelManager:
         return network
 
     def _log(self, network):
-        logging.info('\n ' + str(network))
+        #TODO prints network out: logging.info('\n ' + str(network))
         logging.info('# of Parameters: ' +
                      str(sum(p.numel() for p in network.parameters()
                              if p.requires_grad)))

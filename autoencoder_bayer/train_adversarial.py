@@ -17,6 +17,7 @@ from evals.utils import *
 from settings import *
 
 from tqdm import tqdm
+import sys
 
 np.random.seed(RAND_SEED)
 manual_seed(RAND_SEED)
@@ -75,6 +76,8 @@ class CSVAE:
         #self._loss_types.append('rec')
         self.loss_fn = nn.MSELoss(reduction='none')
         
+        # (was taken out again) ignore_index = 6: ignores class labels with index 6 -> Hz = 0
+        # corpus.py - iter_slice_chunks: does include padding - Therefore rows like [0 0 0] are added
         self.loss_adv = nn.CrossEntropyLoss()
 
     def _init_evaluator(self):
@@ -166,9 +169,9 @@ class CSVAE:
             for b, batch in enumerate(tqdm(self.train_dataloader, desc = 'Train Batches')):
                 # two forward passes for the two optimizers
                 #print('Forward')
-                sample, sample_rec = self.forward(batch)
+                sample, sample_rec = self.forward(batch) 
                 #print('Forward adv')
-                self.forward_adv(batch)
+                self.forward_adv(batch) 
 
                 #-B----
                 #save running loss 100 and reset it
@@ -226,6 +229,12 @@ class CSVAE:
 
     # forward encoder & decoder
     def forward(self, batch):
+        labelsHz = batch[1]     #Hz values
+        batch = batch[0]        # x & y values 
+        
+        # shape batch
+        # batch[0]: signal(x & y values), batch[1]: balancedHz --> data.py: __getitem__
+        # ([32, 2, 1000]) (32,)
         batch = batch.float()
         if self.cuda == True and self.device.type == 'cuda':     #batch = batch.to(self.device)
             batch = batch.cuda()
@@ -240,21 +249,35 @@ class CSVAE:
         z_all, mean, logvar = self.model.network.encode(batch, cat_output=False) 
         # z_all is a list, consists of two tensors z2,z1
         # bs 64: z_all: z_0 torch.Size([64, 64]) z_1 torch.Size([64, 64])       bs 128: torch.Size([128, 64])   torch.Size([128, 64])
-        # z_all[0]: bs x features #z_all[0].shape
- 
+        # z_all[0/1]: bs x features #z_all[0/1].shape #bs = 32: [32, 64]
+        
         # divide batch in 80 bzw 20%
-        size_w = int(0.2*len(z_all[0])) + 1      #26  7  
-        size_z = int(0.8*len(z_all[0]))          #102 25  
-        z2_w, z2_z = torch.split(z_all[0], [size_w, size_z])    #z2 w torch.Size([26, 64])  z torch.Size([102, 64])
-        z1_w, z1_z = torch.split(z_all[1], [size_w, size_z])    #z1 w torch.Size([26, 64])  z torch.Size([102, 64])
-        w = cat([z2_w, z1_w], 0)                                # torch.Size([52, 64])
-        z = cat([z2_z, z1_z], 0)                                # torch.Size([204, 64])
-        #print('w z ', w.shape, ' ', z.shape)                    
-        #print('z ', z)
+        size_w = int(0.2*len(z_all[0])) + 1      #bs=32:  7  
+        size_z = int(0.8*len(z_all[0]))          #bs=32: 25  
+        z2_w, z2_z = torch.split(z_all[0], [size_w, size_z])    #z2 w ([7, 64]) z torch.Size([25, 64])
+        z1_w, z1_z = torch.split(z_all[1], [size_w, size_z])    #z1 w ([7, 64]) z torch.Size([25, 64]))
+        w = cat([z2_w, z1_w], 0)                                # torch.Size([14, 64])   
+        z = cat([z2_z, z1_z], 0)                                # torch.Size([50, 64])
+        # w: [32 14] z: [32 50]
+        # split: (dim = 1)
+        # FYI: out_adv.shape = 50 , 6        
+
+        # divide tensor_labels for CEL in 80 resp. 20%
+        # This is done as z.shape: bs = 32: [50 , features] and therefore out_adversary: [50 , 6] 
+        # Therefore we need as labels for calc. of CEL also [50]              
+        tens_lab = self.getLabel(labelsHz)
+        lab_size_w = int(0.2*len(tens_lab)) + 1    # 6 + 1 = 7
+        lab_size_z = int(0.8*len(tens_lab))         # bs 32: 25
+        lab_z2_w, lab_z2_z = torch.split(tens_lab, [lab_size_w, lab_size_z])    # lab_z2_z shape: 25
+        # copy list as we need labels for z[0] and z[1] -> 2* bs
+        tensor_labels = cat([lab_z2_z, lab_z2_z])                               #tensor_lables shape: 50
         
         #DECODING
         out_decX = self.model.network.decoder(z_all, batch, is_training=_is_training) #gets w & z
+        
         out_adversary = self.model.network.adversary_decoder(z) 
+        #print('out adversary ', out_adversary.shape)
+        #print(out_adversary)
         # TODO z.detach()? loss backward fixen?
         # TODO eventuell Netz zweimal laufen lassen, damit z_all nicht in beiden losses/backward drin ist. Erst ertes Netz traineren und auf 0 setzen, dann zweotes Netz
         #adversary needs another network! -> See TCNAUTOENCODER
@@ -269,9 +292,16 @@ class CSVAE:
         
         #loss = CEL, label - output [self.hz]
         #tensor_labels for 500Hz: 4 (index) (0 0 0 0 1 0 (classes: 30 60 120 250 500 1000))
+        '''
+        #Old label calc - just one Hz rate
         tensor_labels = torch.tensor(self.getLabel(self.hz), dtype = int)
         tensor_labels = tensor_labels.repeat(out_adversary.shape[0])        #bs 128: torch.Size([204]) # tensor([4, 4, 4, 4, ....
-        loss_adv = self.loss_adv(out_adversary, tensor_labels.cuda()) * 1000 # input w? #TODO tensor_labels.cuda() 
+        '''
+        #print(out_adversary.shape, out_adversary)   #[50, 6]
+        #print(tensor_labels.shape, tensor_labels)   #[50])
+        loss_adv = self.loss_adv(out_adversary, tensor_labels.cuda()) #* (10**9) # input w? #TODO tensor_labels.cuda()
+        #print('loss adv: ############################### ', loss_adv.shape, loss_adv)      
+        
         self.running_loss[str('CEL' + dset)] += loss_adv.item()
         self.currentLoss['CEL'] = loss_adv
         
@@ -287,7 +317,10 @@ class CSVAE:
            
             # Hier adv_loss minimieren
             self.model.optim_basis.zero_grad()
-            loss_combo = loss_decX + (- loss_adv)
+            # loss: old: loss_combo = loss_decX + (- loss_adv)
+            # loss_decX - (1/(loss_adv)) * 10**9)
+            # 5e-324 added to not get Nan values if to small
+            loss_combo = loss_decX - (1/(loss_adv + sys.float_info.min)) #(- loss_adv)
             #print('loss combo: ', loss_decX, '-', loss_adv, '=', loss_combo)
             loss_combo.backward()
             self.model.optim_basis.step()       #decX output
@@ -306,6 +339,9 @@ class CSVAE:
         ############################################################################################################### 
         # forward just for adverserial part
     def forward_adv(self, batch):
+        labelsHz = batch[1]     # Hz values
+        batch = batch[0]        # x & y values
+
         batch = batch.float()
         if self.cuda == True and self.device.type == 'cuda': 
             batch = batch.cuda()
@@ -315,18 +351,22 @@ class CSVAE:
         #ENCODING
         z_all, mean, logvar = self.model.network.encode(batch, cat_output=False) 
  
-        # divide batch in 80 bzw 20%
+        # divide batches x & y values in 80 bzw 20%
         size_w = int(0.2*len(z_all[0])) + 1       
         size_z = int(0.8*len(z_all[0]))            
         z2_w, z2_z = torch.split(z_all[0], [size_w, size_z])    
         z1_w, z1_z = torch.split(z_all[1], [size_w, size_z])    
         w = cat([z2_w, z1_w], 0)                                
-        z = cat([z2_z, z1_z], 0)                               
+        z = cat([z2_z, z1_z], 0)   
+        # divide labels in 80 bzw 20%
+        tens_lab = self.getLabel(labelsHz)
+        lab_size_w = int(0.2*len(tens_lab)) + 1    
+        lab_size_z = int(0.8*len(tens_lab))         
+        lab_z2_w, lab_z2_z = torch.split(tens_lab, [lab_size_w, lab_size_z])    
+        tensor_labels = cat([lab_z2_z, lab_z2_z])                              
         
         out_adversary = self.model.network.adversary_decoder(z)
-
-        tensor_labels = torch.tensor(self.getLabel(self.hz), dtype = int)
-        tensor_labels = tensor_labels.repeat(out_adversary.shape[0])        
+        
         loss_adv = self.loss_adv(out_adversary, tensor_labels.cuda()) #TODO auch? * 1000 
         
         # adversary darf nicht parameter vom encoder & decoder_x ändern können nur vom adversary
@@ -419,20 +459,34 @@ class CSVAE:
         #-
     
     
-    #Returns the index of the Label
-    def getLabel(self, Hz):
-        if Hz == 30:
-            return 0 #[1, 0, 0, 0, 0, 0]
-        elif Hz == 60:
-            return 1 #[0, 1, 0, 0, 0, 0]
-        elif Hz == 120:
-            return 2 #[0, 0, 1, 0, 0, 0]
-        elif Hz == 250:
-            return 3 #[0, 0, 0, 1, 0, 0]
-        elif Hz == 500:
-            return 4 #[0, 0, 0, 0, 1, 0]
-        elif Hz == 1000:
-            return 5 #[0, 0, 0, 0, 0, 1]
+    #Returns the index/Class of the Label
+    #tensorHz: tensor([ [1000., 1000., 1000.,  ...,    0.,    0.,    0.],
+    #                   [1000., 1000., 1000.,  ..., 1000., 1000., 1000.], ...
+    #tensor which has list of tensors
+
+    def getLabel(self,  tensorHz): 
+        def getIndx(Hz):
+            #print('Hz', Hz.item())
+            # 0 is added here, as some trials are padded an then get balancedHz value = 0
+            # class 6 shouldn't appear in final labelsasclasses         
+            possibleHz = [30,60,120,250,500,1000,0]
+            indx = possibleHz.index(Hz)
+            return indx
+        
+        labelasclasses = np.array([list(map(lambda z: getIndx(z), x1)) for x1 in tensorHz])
+        labelasclasses = labelasclasses[:,0]
+        
+        assert not labelasclasses.__contains__(6), 'train_adv-getLabel: Class 6 appeared - just a padded trial? corpus.py - iter_clice_chunks. Just skip this batch then?'
+        # [5 2 5 4 3 4 5 3 5 5 4 3 4 4 5 3 2 3 4 5 4 4 4 5 0 4 4 5 5 2 4 5]
+        return torch.tensor(labelasclasses, dtype=torch.long)
+    '''
+    [2 2 2 2 2 2 2 2 2 2 2 2 2 2 2 2 2 2 2 2 2 2 2 2 2 2 2 2 2 2 2 2 2 2 2 2 2
+    2 2 2 2 2 2 2 2 2 2 2 2 2 2 2 2 2 2 2 2 2 2 2 2 2 2 2 2 2 2 2 2 2 2 2 2 2
+    2 2 2 2 2 2 2 2 2 2 2 2 2 2 2 2 2 2 2 2 2 2 2 2 2 2 2 2 2 2 2 2 2 2 2 2 2
+    2 2 2 2 2 2 2 2 2 2 2 2 2 2 2 2 2 2 2 2 2 2 2 2 2 2 2 2 2 2 2 2 2 2 2 2 2
+    2 2 2 2 2 2 2 2 2 2 2 2 2 2 2 2 2 2 2 2 2 2 2 2 2 2 2 2 2 2 2 2 2 2 2 2 2
+    2 2 2 2 6 6 6 6 6 6 6 6 6 6 6 6 6 6 6 6 6 6 6 6 6 6 6 6 6 6 6 6 6 6 6 6 6 ...
+    '''
 
 
 args = get_parser().parse_args()
@@ -441,7 +495,8 @@ setup_logging(args, run_identifier)
 print_settings()
 
 logging.info('\nRUN ADVERSARIAL: ' + run_identifier + '\n')
-logging.info('Arguments ', str(args))
+print('Arguments ', args)
+#logging.info('Arguments ', str(args))
 
 adversarial = CSVAE()
 adversarial.train()
