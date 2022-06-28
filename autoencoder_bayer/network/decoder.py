@@ -107,7 +107,7 @@ class AdversaryDecoder(nn.Module):
     def __init__(self, args):
         super(AdversaryDecoder, self).__init__()
         self.adv_model = nn.Sequential(OrderedDict([
-            ('linear1', nn.Linear(64, 500)), ('relu1', nn.ReLU()),
+            ('linear1', nn.Linear(102, 500)), ('relu1', nn.ReLU()),      #was (64,500) when batch was divided in 80/20% and not the features
             ('linear2', nn.Linear(500, 200)), ('relu2', nn.ReLU()), 
             ('final_linear', nn.Linear(200, 6))
         ]))# output should be bsx6

@@ -249,9 +249,26 @@ class CSVAE:
         z_all, mean, logvar = self.model.network.encode(batch, cat_output=False) 
         # z_all is a list, consists of two tensors z2,z1
         # bs 64: z_all: z_0 torch.Size([64, 64]) z_1 torch.Size([64, 64])       bs 128: torch.Size([128, 64])   torch.Size([128, 64])
-        # z_all[0/1]: bs x features #z_all[0/1].shape #bs = 32: [32, 64]
+        # tensor z_all[0/1]: bs x features #z_all[0/1].shape #bs = 32: [32, 64]
         
-        # divide batch in 80 bzw 20%
+        # Divide 64 features of z_all[0] and z_all[1] -> 128 features in 80% bzw 20%
+        size_w = int(0.2*z_all[0].shape[1]) + 1         #von 64 features: 13  
+        size_z = int(0.8*z_all[0].shape[1])             #von 64 features: 51
+        z2_w, z2_z = torch.split(z_all[0], [size_w, size_z], dim = 1)    #torch.Size([bs = 32, 13]) torch.Size([bs, 51])
+        z1_w, z1_z = torch.split(z_all[1], [size_w, size_z], dim = 1)    #torch.Size([bs, 13]) torch.Size([bs, 51])
+        z = cat([z2_z, z1_z], 1)    # torch.Size([bs, 102]) 2*51 = 2*size_z
+        #print(z_all[0][0])
+        #print(z_all[1][0])
+        #print(z[0])
+        #print('z shape ', z.shape)
+        #out_adversary = self.model.network.adversary_decoder(z)
+        #print(out_adversary.shape) # torch.Size([32, 6]) -> [bs , 6]
+        tensor_labels = self.getLabel(labelsHz)
+        #print(tens_lab.shape) # [32] -> [bs]
+        #loss_adv = self.loss_adv(out_adversary, tensor_labels.cuda())
+
+        '''
+        # divide batch (size) in 80 bzw 20%
         size_w = int(0.2*len(z_all[0])) + 1      #bs=32:  7  
         size_z = int(0.8*len(z_all[0]))          #bs=32: 25  
         z2_w, z2_z = torch.split(z_all[0], [size_w, size_z])    #z2 w ([7, 64]) z torch.Size([25, 64])
@@ -271,7 +288,7 @@ class CSVAE:
         lab_z2_w, lab_z2_z = torch.split(tens_lab, [lab_size_w, lab_size_z])    # lab_z2_z shape: 25
         # copy list as we need labels for z[0] and z[1] -> 2* bs
         tensor_labels = cat([lab_z2_z, lab_z2_z])                               #tensor_lables shape: 50
-        
+        '''
         #DECODING
         out_decX = self.model.network.decoder(z_all, batch, is_training=_is_training) #gets w & z
         
@@ -351,19 +368,12 @@ class CSVAE:
         #ENCODING
         z_all, mean, logvar = self.model.network.encode(batch, cat_output=False) 
  
-        # divide batches x & y values in 80 bzw 20%
-        size_w = int(0.2*len(z_all[0])) + 1       
-        size_z = int(0.8*len(z_all[0]))            
-        z2_w, z2_z = torch.split(z_all[0], [size_w, size_z])    
-        z1_w, z1_z = torch.split(z_all[1], [size_w, size_z])    
-        w = cat([z2_w, z1_w], 0)                                
-        z = cat([z2_z, z1_z], 0)   
-        # divide labels in 80 bzw 20%
-        tens_lab = self.getLabel(labelsHz)
-        lab_size_w = int(0.2*len(tens_lab)) + 1    
-        lab_size_z = int(0.8*len(tens_lab))         
-        lab_z2_w, lab_z2_z = torch.split(tens_lab, [lab_size_w, lab_size_z])    
-        tensor_labels = cat([lab_z2_z, lab_z2_z])                              
+        size_w = int(0.2*z_all[0].shape[1]) + 1          
+        size_z = int(0.8*z_all[0].shape[1])             
+        z2_w, z2_z = torch.split(z_all[0], [size_w, size_z], dim = 1)    
+        z1_w, z1_z = torch.split(z_all[1], [size_w, size_z], dim = 1)    
+        z = cat([z2_z, z1_z], 1)    
+        tensor_labels = self.getLabel(labelsHz)                            
         
         out_adversary = self.model.network.adversary_decoder(z)
         
