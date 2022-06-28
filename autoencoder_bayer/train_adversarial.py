@@ -37,7 +37,7 @@ class CSVAE:
 
         #self.rec_loss = args.rec_loss #MSE
         self.hz = args.hz
-
+        self.signal_type = args.signal_type
         #-B----
         # introduced two summary writer, so we can see the two functions in one graph in tensorboard
         self.tensorboard_train = SummaryWriter(f"runs/{run_identifier}_trainLoss")
@@ -169,7 +169,7 @@ class CSVAE:
             for b, batch in enumerate(tqdm(self.train_dataloader, desc = 'Train Batches')):
                 # two forward passes for the two optimizers
                 #print('Forward')
-                sample, sample_rec = self.forward(batch) 
+                sample, sample_rec = self.forward(batch, e, b) #need e & b for displaying z_all
                 #print('Forward adv')
                 self.forward_adv(batch) 
 
@@ -186,6 +186,14 @@ class CSVAE:
                     #---
                     self.init_running_loss_100()
                     counter_100 +=1
+
+                #draw every epoch
+                if b == 0:
+                    #batch Display
+                    self.batch_to_color(sample, f"XandY", f"train-epoch{e}-original-batch")
+                    self.batch_to_color(sample_rec.detach(), f"XandY", f"train-epoch{e}-reconstructed-batch")
+                    self.batch_diff_to_color(sample, sample_rec.detach(), f"XandY", f"train-epoch{e}")
+                
                 if e < 1:
                     self.tensorboard_first_epoch_train.add_scalar(f"loss in first epoch TRAIN", self.currentLoss['MSE'], b)
                     self.CELtensorboard_first_epoch_train.add_scalar(f"CEL loss in first epoch TRAIN", self.currentLoss['CEL'], b)
@@ -203,7 +211,13 @@ class CSVAE:
             self.model.network.eval()
             for b, batch in enumerate(tqdm(self.val_dataloader, desc = 'Val Batches')):
                 # In forward NN also calcs & saves the loss 
-                sample_v, sample_rec_v = self.forward(batch)
+                sample_v, sample_rec_v = self.forward(batch, e, b)
+                
+                #batch Display
+                if b == (len(self.val_dataloader)-1) or b == 0:
+                    self.batch_to_color(sample_v, f"XandY", f"val-epoch{e}-batch{b}-original-batch")
+                    self.batch_to_color(sample_rec_v.detach(), f"XandY", f"val-epoch{e}-batch{b}-reconstructed-batch")
+                    self.batch_diff_to_color(sample_v, sample_rec_v.detach(), f"XandY", f"val-epoch{e}-batch{b}")
 
                 if e < 1:
                     self.tensorboard_first_epoch_val.add_scalar(f"loss in first epoch VAL", self.currentLoss['MSE'], b)
@@ -228,7 +242,7 @@ class CSVAE:
             
 
     # forward encoder & decoder
-    def forward(self, batch):
+    def forward(self, batch, e, b):
         labelsHz = batch[1]     #Hz values
         batch = batch[0]        # x & y values 
         
@@ -250,6 +264,11 @@ class CSVAE:
         # z_all is a list, consists of two tensors z2,z1
         # bs 64: z_all: z_0 torch.Size([64, 64]) z_1 torch.Size([64, 64])       bs 128: torch.Size([128, 64])   torch.Size([128, 64])
         # tensor z_all[0/1]: bs x features #z_all[0/1].shape #bs = 32: [32, 64]
+        
+        #Display z just once every epoch 
+        if b == 0:
+            self.batch_to_color(z_all[0], f"MicroMacroZ", f"epoch{e}-z2")
+            self.batch_to_color(z_all[1], f"MicroMacroZ", f"epoch{e}-z1")
         
         # Divide 64 features of z_all[0] and z_all[1] -> 128 features in 80% bzw 20%
         size_w = int(0.2*z_all[0].shape[1]) + 1         #von 64 features: 13  
@@ -497,6 +516,49 @@ class CSVAE:
     2 2 2 2 2 2 2 2 2 2 2 2 2 2 2 2 2 2 2 2 2 2 2 2 2 2 2 2 2 2 2 2 2 2 2 2 2
     2 2 2 2 6 6 6 6 6 6 6 6 6 6 6 6 6 6 6 6 6 6 6 6 6 6 6 6 6 6 6 6 6 6 6 6 6 ...
     '''
+
+    def batch_to_color(self, batch, directory, name):
+        title = 'default'
+        # directory either 'MicroMacroZ' or 'XandY'
+        
+        #fig, axs = plt.subplots(2)        
+        # shape [2, 1000]
+        #shape (2,500) -> x/vel_x: (1,500) y/vel_y: (1,500)
+        # name: e.g. train-epoch{e}-original-batch
+        if directory == 'XandY':
+            print(name)
+            fig, axs = plt.subplots(2)
+            x = pd.DataFrame(batch[0,:].reshape(-1,50).numpy())
+            y = pd.DataFrame(batch[1,:].reshape(-1,50).numpy())
+
+            if self.signal_type == 'vel':
+                title = 'vel_'
+            else:
+                title = ''
+
+            im1 = axs[0].matshow(x)
+            fig.colorbar(im1, ax = axs[0], orientation = 'vertical')
+            axs[0].set_title(f"{title}x", pad=30)
+            im2 = axs[1].matshow(y)
+            fig.colorbar(im2, ax = axs[1], orientation = 'vertical')
+            axs[1].set_title(f"{title}y", pad=30)
+            plt.subplots_adjust(hspace=0.5)
+            plt.savefig(f"batchDisplay/{directory}/{name}.png")
+            exit()
+        #name: epoch{e}-z2
+        elif directory == 'MicroMacroZ':
+            fig, axs = plt.subplots(1)
+            x = pd.DataFrame(batch.cpu().detach().numpy())
+            im1 = axs.matshow(x)
+            fig.colorbar(im1, ax = axs, orientation = 'vertical')
+            axs.set_title(f"{name}", pad=30)   
+            plt.savefig(f"batchDisplay/{directory}/{name}.png") 
+        
+
+    def batch_diff_to_color(self, original, rec, directory, name):
+        diff = torch.subtract(original, rec)
+
+        self.batch_to_color(torch.abs(diff), directory, f'{name}_diff')
 
 
 args = get_parser().parse_args()
