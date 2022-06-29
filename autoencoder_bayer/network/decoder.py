@@ -65,6 +65,7 @@ class CausalDecoder(nn.Module):
         #x = cat((x_true, zeros(x_true.shape[0], 2, 1).cuda()), dim=2)
 
         x = nn.functional.dropout(x, self.input_dropout, is_training)
+        destroyedBatch = x  #just to display
         """
         IMPORTANT! Dropout used in NNs don't actually just drop out values
         It scales non-dropped values by 1/p so that the same graph is used in
@@ -83,7 +84,7 @@ class CausalDecoder(nn.Module):
                 x = block(x, latent_proj)
             else:
                 x = block(x)
-        return x[:, :, :-1]
+        return x[:, :, :-1], destroyedBatch
 
 
 class CausalBlock(ResidualBlock):

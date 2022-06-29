@@ -14,4 +14,6 @@ autoencoder_bayer/runs_CEL
 autoencoder_bayer/SHOW_accuracy
 autoencoder_bayer/SHOW_runs
 autoencoder_bayer/zOLD_files
+autoencoder_bayer/batchDisplay/MicroMacroZ/*
+autoencoder_bayer/batchDisplay/XandY/*
 models/*

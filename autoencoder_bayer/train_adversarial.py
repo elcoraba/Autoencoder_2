@@ -2,6 +2,7 @@
 import time
 import logging
 from datetime import datetime
+from matplotlib.pyplot import imshow, viridis
 
 import numpy as np
 from torch import manual_seed, nn, device, cuda, multiprocessing, cat, tensor
@@ -18,6 +19,7 @@ from settings import *
 
 from tqdm import tqdm
 import sys
+from mpl_toolkits.axes_grid1 import ImageGrid
 
 np.random.seed(RAND_SEED)
 manual_seed(RAND_SEED)
@@ -168,9 +170,7 @@ class CSVAE:
             self.model.network.train()
             for b, batch in enumerate(tqdm(self.train_dataloader, desc = 'Train Batches')):
                 # two forward passes for the two optimizers
-                #print('Forward')
                 sample, sample_rec = self.forward(batch, e, b) #need e & b for displaying z_all
-                #print('Forward adv')
                 self.forward_adv(batch) 
 
                 #-B----
@@ -205,13 +205,14 @@ class CSVAE:
 
             # save the train loss of the whole epoch
             self.logB(e, 'train')
-
+            
             #############################################################################
             # Validate the model
             self.model.network.eval()
             for b, batch in enumerate(tqdm(self.val_dataloader, desc = 'Val Batches')):
                 # In forward NN also calcs & saves the loss 
                 sample_v, sample_rec_v = self.forward(batch, e, b)
+                # don't need second forward here
                 
                 #batch Display
                 if b == (len(self.val_dataloader)-1) or b == 0:
@@ -240,18 +241,21 @@ class CSVAE:
             if self.save_model: #and (e+1)%5 == 0:
                 self.model.save(e, run_identifier, self.epoch_losses, self.global_losses_100, run_identifier, args, True)
             
-
     # forward encoder & decoder
     def forward(self, batch, e, b):
+        # batch[0]: signal(x & y values), batch[1]: balancedHz --> data.py: __getitem__
         labelsHz = batch[1]     #Hz values
         batch = batch[0]        # x & y values 
+
+        rand_idx = np.random.randint(0, batch.shape[0])
         
         # shape batch
-        # batch[0]: signal(x & y values), batch[1]: balancedHz --> data.py: __getitem__
         # ([32, 2, 1000]) (32,)
         batch = batch.float()
+        tensor_labels = self.getLabel(labelsHz) # [32] -> [bs]
         if self.cuda == True and self.device.type == 'cuda':     #batch = batch.to(self.device)
             batch = batch.cuda()
+            tensor_labels = tensor_labels.cuda()
 
         _is_training = self.model.network.training
         dset = 'train' if self.model.network.training else 'val'
@@ -276,40 +280,13 @@ class CSVAE:
         z2_w, z2_z = torch.split(z_all[0], [size_w, size_z], dim = 1)    #torch.Size([bs = 32, 13]) torch.Size([bs, 51])
         z1_w, z1_z = torch.split(z_all[1], [size_w, size_z], dim = 1)    #torch.Size([bs, 13]) torch.Size([bs, 51])
         z = cat([z2_z, z1_z], 1)    # torch.Size([bs, 102]) 2*51 = 2*size_z
-        #print(z_all[0][0])
-        #print(z_all[1][0])
-        #print(z[0])
-        #print('z shape ', z.shape)
-        #out_adversary = self.model.network.adversary_decoder(z)
-        #print(out_adversary.shape) # torch.Size([32, 6]) -> [bs , 6]
-        tensor_labels = self.getLabel(labelsHz)
-        #print(tens_lab.shape) # [32] -> [bs]
-        #loss_adv = self.loss_adv(out_adversary, tensor_labels.cuda())
-
-        '''
-        # divide batch (size) in 80 bzw 20%
-        size_w = int(0.2*len(z_all[0])) + 1      #bs=32:  7  
-        size_z = int(0.8*len(z_all[0]))          #bs=32: 25  
-        z2_w, z2_z = torch.split(z_all[0], [size_w, size_z])    #z2 w ([7, 64]) z torch.Size([25, 64])
-        z1_w, z1_z = torch.split(z_all[1], [size_w, size_z])    #z1 w ([7, 64]) z torch.Size([25, 64]))
-        w = cat([z2_w, z1_w], 0)                                # torch.Size([14, 64])   
-        z = cat([z2_z, z1_z], 0)                                # torch.Size([50, 64])
-        # w: [32 14] z: [32 50]
-        # split: (dim = 1)
-        # FYI: out_adv.shape = 50 , 6        
-
-        # divide tensor_labels for CEL in 80 resp. 20%
-        # This is done as z.shape: bs = 32: [50 , features] and therefore out_adversary: [50 , 6] 
-        # Therefore we need as labels for calc. of CEL also [50]              
-        tens_lab = self.getLabel(labelsHz)
-        lab_size_w = int(0.2*len(tens_lab)) + 1    # 6 + 1 = 7
-        lab_size_z = int(0.8*len(tens_lab))         # bs 32: 25
-        lab_z2_w, lab_z2_z = torch.split(tens_lab, [lab_size_w, lab_size_z])    # lab_z2_z shape: 25
-        # copy list as we need labels for z[0] and z[1] -> 2* bs
-        tensor_labels = cat([lab_z2_z, lab_z2_z])                               #tensor_lables shape: 50
-        '''
+        
         #DECODING
-        out_decX = self.model.network.decoder(z_all, batch, is_training=_is_training) #gets w & z
+        out_decX, destroyedBatch = self.model.network.decoder(z_all, batch, is_training=_is_training) #gets w & z
+        #Display destroyed input batch from decoder for a certain, randomly chosen, batch
+        # same random batch as sample & sample_rec
+        if dset == 'train' and b == 0:
+            self.batch_to_color(destroyedBatch[rand_idx,:,:-1], f"XandY", f"epoch{e}-destroyed batch")
         
         out_adversary = self.model.network.adversary_decoder(z) 
         #print('out adversary ', out_adversary.shape)
@@ -335,7 +312,7 @@ class CSVAE:
         '''
         #print(out_adversary.shape, out_adversary)   #[50, 6]
         #print(tensor_labels.shape, tensor_labels)   #[50])
-        loss_adv = self.loss_adv(out_adversary, tensor_labels.cuda()) #* (10**9) # input w? #TODO tensor_labels.cuda()
+        loss_adv = self.loss_adv(out_adversary, tensor_labels) #* (10**9) # input w? #TODO tensor_labels.cuda()
         #print('loss adv: ############################### ', loss_adv.shape, loss_adv)      
         
         self.running_loss[str('CEL' + dset)] += loss_adv.item()
@@ -369,7 +346,6 @@ class CSVAE:
             # loss_adv_2: loss_adv zweimal berechnen (solves detach problem?)
             # anderen Optimizer: stochastic gradient decent (*100 *1000 Problem)
 
-        rand_idx = np.random.randint(0, batch.shape[0])
         return batch[rand_idx].cpu(), reconstructed_batch[rand_idx].cpu()
 
         ############################################################################################################### 
@@ -379,8 +355,10 @@ class CSVAE:
         batch = batch[0]        # x & y values
 
         batch = batch.float()
+        tensor_labels = self.getLabel(labelsHz) 
         if self.cuda == True and self.device.type == 'cuda': 
             batch = batch.cuda()
+            tensor_labels = tensor_labels.cuda()
 
         dset = 'train' if self.model.network.training else 'val'
 
@@ -392,11 +370,10 @@ class CSVAE:
         z2_w, z2_z = torch.split(z_all[0], [size_w, size_z], dim = 1)    
         z1_w, z1_z = torch.split(z_all[1], [size_w, size_z], dim = 1)    
         z = cat([z2_z, z1_z], 1)    
-        tensor_labels = self.getLabel(labelsHz)                            
-        
+                                   
         out_adversary = self.model.network.adversary_decoder(z)
         
-        loss_adv = self.loss_adv(out_adversary, tensor_labels.cuda()) #TODO auch? * 1000 
+        loss_adv = self.loss_adv(out_adversary, tensor_labels) #TODO auch? * 1000 
         
         # adversary darf nicht parameter vom encoder & decoder_x ändern können nur vom adversary
         # tasks: sampling rate oder TODO subject
@@ -517,42 +494,76 @@ class CSVAE:
     2 2 2 2 6 6 6 6 6 6 6 6 6 6 6 6 6 6 6 6 6 6 6 6 6 6 6 6 6 6 6 6 6 6 6 6 6 ...
     '''
 
+    #batch is a random chosen batch [rand_inx, 2, 1000] (bs = 32: [32,2,1000])
+    #directory either 'MicroMacroZ' or 'XandY'
     def batch_to_color(self, batch, directory, name):
         title = 'default'
-        # directory either 'MicroMacroZ' or 'XandY'
-        
-        #fig, axs = plt.subplots(2)        
-        # shape [2, 1000]
-        #shape (2,500) -> x/vel_x: (1,500) y/vel_y: (1,500)
+
         # name: e.g. train-epoch{e}-original-batch
         if directory == 'XandY':
-            print(name)
-            fig, axs = plt.subplots(2)
-            x = pd.DataFrame(batch[0,:].reshape(-1,50).numpy())
-            y = pd.DataFrame(batch[1,:].reshape(-1,50).numpy())
+            scale_min = 0
+            scale_max = 3
+            fig = plt.figure(figsize=(10,5))
+            
+            if torch.is_tensor(batch): # for destroyed batch
+                x = pd.DataFrame(batch[0,:].cpu().detach().numpy().reshape(-1,50))
+                y = pd.DataFrame(batch[1,:].cpu().detach().numpy().reshape(-1,50))
+            else:
+                x = pd.DataFrame(batch[0,:].reshape(-1,50).numpy())
+                y = pd.DataFrame(batch[1,:].reshape(-1,50).numpy())
+            lista = [x,y]
 
+            #---------------------------
             if self.signal_type == 'vel':
                 title = 'vel_'
             else:
                 title = ''
 
-            im1 = axs[0].matshow(x)
-            fig.colorbar(im1, ax = axs[0], orientation = 'vertical')
-            axs[0].set_title(f"{title}x", pad=30)
-            im2 = axs[1].matshow(y)
-            fig.colorbar(im2, ax = axs[1], orientation = 'vertical')
-            axs[1].set_title(f"{title}y", pad=30)
-            plt.subplots_adjust(hspace=0.5)
-            plt.savefig(f"batchDisplay/{directory}/{name}.png")
-            exit()
+            grid = ImageGrid(fig, 111,          
+                 nrows_ncols=(2,1),
+                 axes_pad=0.3,
+                 share_all=True,
+                 cbar_location="right",
+                 cbar_mode="single",
+                 cbar_size="4%",
+                 cbar_pad=0.15,
+                 )
+
+            # Add data to image grid
+            for i,ax in enumerate(grid):
+                im = ax.imshow(lista[i], vmin=scale_min, vmax=scale_max)
+                if i == 0:
+                    nameCoord = 'x'
+                else:
+                    nameCoord = 'y'
+                ax.set_title(f"{title}{nameCoord}")
+                ax.grid(False)
+
+            # Colorbar
+            ax.cax.colorbar(im, extend = 'both', extendfrac = 0.2, extendrect = True)
+            ax.cax.toggle_label(True)
+            ax.set_xticks([])       #no axis shown
+            ax.set_yticks([])
+            fig.savefig(f"batchDisplay/{directory}/{name}.png")
+                        
+            
         #name: epoch{e}-z2
         elif directory == 'MicroMacroZ':
-            fig, axs = plt.subplots(1)
+            scale_min = -5
+            scale_max = 20
+            fig = plt.figure(figsize=(10,5))
+            
             x = pd.DataFrame(batch.cpu().detach().numpy())
-            im1 = axs.matshow(x)
-            fig.colorbar(im1, ax = axs, orientation = 'vertical')
-            axs.set_title(f"{name}", pad=30)   
-            plt.savefig(f"batchDisplay/{directory}/{name}.png") 
+            
+            im = plt.imshow(x,cmap='cool', vmin=scale_min, vmax=scale_max)
+            plt.xlabel('features')
+            plt.ylabel('batches')
+            plt.title(f"{name}")
+            plt.grid(False)
+            plt.colorbar(im, extend = 'both', extendfrac = 0.2, extendrect = True)
+            plt.xticks(list(range(0,64,5)))       
+            plt.yticks(list(range(0,32,5)))
+            fig.savefig(f"batchDisplay/{directory}/{name}.png")
         
 
     def batch_diff_to_color(self, original, rec, directory, name):
