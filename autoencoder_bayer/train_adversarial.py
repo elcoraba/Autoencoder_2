@@ -197,10 +197,10 @@ class CSVAE:
                 if e < 1:
                     self.tensorboard_first_epoch_train.add_scalar(f"loss in first epoch TRAIN", self.currentLoss['MSE'], b)
                     self.CELtensorboard_first_epoch_train.add_scalar(f"CEL loss in first epoch TRAIN", self.currentLoss['CEL'], b)
-
-                if b == 0:
+                '''
+                if b == 10:
                     break
-                
+                '''
                 #-B----
 
             # save the train loss of the whole epoch
@@ -223,10 +223,11 @@ class CSVAE:
                 if e < 1:
                     self.tensorboard_first_epoch_val.add_scalar(f"loss in first epoch VAL", self.currentLoss['MSE'], b)
                     self.CELtensorboard_first_epoch_val.add_scalar(f"CEL loss in first epoch VAL", self.currentLoss['CEL'], b)
-                
+                '''
                 if b == 0:
                     break
-                
+                '''
+            
             #evaluation
             if (e + 1) % 1 == 0: #TODO 10
                 print('---------------------Evaluation---------------------')
@@ -238,7 +239,7 @@ class CSVAE:
             self.logB(e, 'val') 
             t.set_postfix(loss = (self.epoch_losses['train'][e], self.epoch_losses['val'][e])) # print losses in tqdm bar
             # Save Model every epoch
-            if self.save_model: #and (e+1)%5 == 0:
+            if self.save_model and (e+1)%5 == 0:
                 self.model.save(e, run_identifier, self.epoch_losses, self.global_losses_100, run_identifier, args, True)
             
     # forward encoder & decoder
@@ -333,7 +334,8 @@ class CSVAE:
             # loss: old: loss_combo = loss_decX + (- loss_adv)
             # loss_decX - (1/(loss_adv)) * 10**9)
             # 5e-324 added to not get Nan values if to small
-            loss_combo = loss_decX - (1/(loss_adv + sys.float_info.min)) #(- loss_adv)
+            ##loss_combo = loss_decX - (1/(loss_adv + sys.float_info.min))#*10 #(- loss_adv)
+            loss_combo = loss_decX - (loss_adv*10)
             #print('loss combo: ', loss_decX, '-', loss_adv, '=', loss_combo)
             loss_combo.backward()
             self.model.optim_basis.step()       #decX output
@@ -379,7 +381,6 @@ class CSVAE:
         # tasks: sampling rate oder TODO subject
         # get_item: soll auch label mit rausgeben
         
-
         #update network if we are training
         if self.model.network.training:
             # Hier adv_loss minimieren
@@ -545,8 +546,18 @@ class CSVAE:
             ax.set_xticks([])       #no axis shown
             ax.set_yticks([])
             fig.savefig(f"batchDisplay/{directory}/{name}.png")
-                        
-            
+
+            #---------------------------------without scaling
+            fig,axs = plt.subplots(2)
+            im1 = axs[0].matshow(x)
+            fig.colorbar(im1, ax = axs[0], orientation = 'vertical')
+            axs[0].set_title(f"{title}x", pad = 30)
+
+            im2 = axs[1].matshow(y)
+            fig.colorbar(im2, ax = axs[1], orientation = 'vertical')
+            axs[1].set_title(f"{title}y", pad = 30)           
+            plt.subplots_adjust(hspace=0.5)
+            plt.savefig(f"batchDisplay/{directory}/withoutScaling/{name}.png")
         #name: epoch{e}-z2
         elif directory == 'MicroMacroZ':
             scale_min = -5
@@ -564,6 +575,15 @@ class CSVAE:
             plt.xticks(list(range(0,64,5)))       
             plt.yticks(list(range(0,32,5)))
             fig.savefig(f"batchDisplay/{directory}/{name}.png")
+
+            #-----------------------WithoutScaling
+            fig, axs = plt.subplots(1)
+            #x = pd.DataFrame(batch.cpu().detach().numpy())
+            im1 = axs.matshow(x, cmap='cool')
+            fig.colorbar(im1, ax = axs, orientation = 'vertical')
+            axs.set_title(f"{name}", pad=30)   
+            plt.grid(None)
+            plt.savefig(f"batchDisplay/{directory}/withoutScaling/{name}.png") 
         
 
     def batch_diff_to_color(self, original, rec, directory, name):
@@ -573,7 +593,8 @@ class CSVAE:
 
 
 args = get_parser().parse_args()
-run_identifier = f"TEST-ADV-SyBa_{args.hz}Hz_{args.signal_type}_ETRA_FIFA_EMVIC" #datetime.now().strftime('%m%d-%H%M')
+run_identifier = f"ADV2new-SyBa_{args.hz}Hz_{args.signal_type}_ETRA_FIFA_EMVIC_lossSwitched" #datetime.now().strftime('%m%d-%H%M')
+#run_identifier = f"ADV-SyBa_{args.hz}Hz_{args.signal_type}_test"
 setup_logging(args, run_identifier)
 print_settings()
 
