@@ -1,4 +1,5 @@
 #tensorboard --logdir=runs
+#tensorboard --logdir=possiblePlots\originaltestsize02\POS
 import time
 import logging
 from datetime import datetime
@@ -40,6 +41,8 @@ class CSVAE:
         #self.rec_loss = args.rec_loss #MSE
         self.hz = args.hz
         self.signal_type = args.signal_type
+        self.acc_z_0_8 = args.accuracy_calc_with_z_08
+        self.plot = args.plot_representations_and_batchvalues
         #-B----
         # introduced two summary writer, so we can see the two functions in one graph in tensorboard
         self.tensorboard_train = SummaryWriter(f"runs/{run_identifier}_trainLoss")
@@ -58,7 +61,6 @@ class CSVAE:
         self._init_evaluator()
 
     def _load_data(self):
-        print('Load data')
         self.dataset = SignalDataset(get_corpora(args), args,
                                      caller='trainer', is_adv=True)
 
@@ -67,11 +69,17 @@ class CSVAE:
 
         if len(self.dataset) % args.batch_size == 1:
             _loader_params.update({'drop_last': True})
-
+        
         self.train_dataloader = DataLoader(self.dataset, **_loader_params)
-        self.val_dataloader = (
-            DataLoader(self.dataset.val_set, drop_last=True, **_loader_params)
-            if self.dataset.val_set else None)
+        # problem with multiple values for drop_last
+        if self.signal_type == 'pos' and self.hz == 1000:
+            self.val_dataloader = (
+                DataLoader(self.dataset.val_set, **_loader_params)
+                if self.dataset.val_set else None)
+        else:
+            self.val_dataloader = (
+                DataLoader(self.dataset.val_set, drop_last=True, **_loader_params)
+                if self.dataset.val_set else None)
 
     def _init_loss_fn(self, args):
         #self._loss_types = ['total']
@@ -88,7 +96,8 @@ class CSVAE:
         print('################################################################################################')
         # for logging out this run
         _rep_name = '{}{}-hz{}-s{}'.format(run_identifier, 'mse', self.dataset.hz, self.dataset.signal_type)
-
+        print('Evaluation just with 80percent of the z values: ', self.acc_z_0_8)
+            
         self.evaluator = RepresentationEvaluator(
             tasks=[Biometrics_EMVIC(), ETRAStimuli(),
                    AgeGroupBinary(), GenderBinary()],
@@ -188,7 +197,7 @@ class CSVAE:
                     counter_100 +=1
 
                 #draw every epoch
-                if b == 0:
+                if b == 0 and self.plot:
                     #batch Display
                     self.batch_to_color(sample, f"XandY", f"train-epoch{e}-original-batch")
                     self.batch_to_color(sample_rec.detach(), f"XandY", f"train-epoch{e}-reconstructed-batch")
@@ -198,7 +207,7 @@ class CSVAE:
                     self.tensorboard_first_epoch_train.add_scalar(f"loss in first epoch TRAIN", self.currentLoss['MSE'], b)
                     self.CELtensorboard_first_epoch_train.add_scalar(f"CEL loss in first epoch TRAIN", self.currentLoss['CEL'], b)
                 '''
-                if b == 10:
+                if b == 0:
                     break
                 '''
                 #-B----
@@ -215,7 +224,7 @@ class CSVAE:
                 # don't need second forward here
                 
                 #batch Display
-                if b == (len(self.val_dataloader)-1) or b == 0:
+                if (b == (len(self.val_dataloader)-1) or b == 0) and self.plot:
                     self.batch_to_color(sample_v, f"XandY", f"val-epoch{e}-batch{b}-original-batch")
                     self.batch_to_color(sample_rec_v.detach(), f"XandY", f"val-epoch{e}-batch{b}-reconstructed-batch")
                     self.batch_diff_to_color(sample_v, sample_rec_v.detach(), f"XandY", f"val-epoch{e}-batch{b}")
@@ -271,7 +280,7 @@ class CSVAE:
         # tensor z_all[0/1]: bs x features #z_all[0/1].shape #bs = 32: [32, 64]
         
         #Display z just once every epoch 
-        if b == 0:
+        if b == 0 and self.plot:
             self.batch_to_color(z_all[0], f"MicroMacroZ", f"epoch{e}-z2")
             self.batch_to_color(z_all[1], f"MicroMacroZ", f"epoch{e}-z1")
         
@@ -286,7 +295,7 @@ class CSVAE:
         out_decX, destroyedBatch = self.model.network.decoder(z_all, batch, is_training=_is_training) #gets w & z
         #Display destroyed input batch from decoder for a certain, randomly chosen, batch
         # same random batch as sample & sample_rec
-        if dset == 'train' and b == 0:
+        if dset == 'train' and b == 0 and self.plot:
             self.batch_to_color(destroyedBatch[rand_idx,:,:-1], f"XandY", f"epoch{e}-destroyed batch")
         
         out_adversary = self.model.network.adversary_decoder(z) 
@@ -498,6 +507,7 @@ class CSVAE:
     #batch is a random chosen batch [rand_inx, 2, 1000] (bs = 32: [32,2,1000])
     #directory either 'MicroMacroZ' or 'XandY'
     def batch_to_color(self, batch, directory, name):
+        
         title = 'default'
 
         # name: e.g. train-epoch{e}-original-batch
@@ -593,8 +603,8 @@ class CSVAE:
 
 
 args = get_parser().parse_args()
-run_identifier = f"ADV2new-SyBa_{args.hz}Hz_{args.signal_type}_ETRA_FIFA_EMVIC_lossSwitched" #datetime.now().strftime('%m%d-%H%M')
-#run_identifier = f"ADV-SyBa_{args.hz}Hz_{args.signal_type}_test"
+#run_identifier = f"ADV2new-SyBa_{args.hz}Hz_{args.signal_type}_ETRA_FIFA_EMVIC" #datetime.now().strftime('%m%d-%H%M')
+run_identifier = f"ADV-SyBa_{args.hz}Hz_{args.signal_type}_test"
 setup_logging(args, run_identifier)
 print_settings()
 

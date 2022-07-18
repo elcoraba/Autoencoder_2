@@ -42,6 +42,10 @@ class RepresentationEvaluator:
             self.classifiers = [CLASSIFIER_PARAMS[c] for c in classifiers]
         self.is_adv = is_adv
 
+        ##B
+        self.acc_z_0_8 = args.accuracy_calc_with_z_08
+        ##B
+
         # evaluate while training; use model passed in by trainer
         if 'model' in kwargs:
             self._caller = 'trainer'
@@ -191,7 +195,7 @@ class RepresentationEvaluator:
 
         self.df['z'] = self.df.apply(
             lambda x: np.concatenate([x[col] for col in z_cols]),
-            axis=1)
+            axis=1) #bs 2 128 -> bs 2 102
         logging.info('Done. Final representation shape: {}'.format(
             self.df['z'].iloc[0].shape))
 
@@ -236,6 +240,33 @@ class RepresentationEvaluator:
             x, y, = task.get_xy(self.df)
             if len(x) < 1:
                 continue
+            
+            # During adversarial training it is possible to just calculate the
+            # accuracy of the tasks with the 80% of z, where the protected attribute (sampling rate)
+            # was excluded
+            if self.acc_z_0_8 and self.is_adv:
+                ###----------
+                # x = Series -> x.shape = (480,), x[0].shape = (128,)
+                #----------------
+                x_nparray = np.array(x.values.tolist())     #(480, 128)
+                x_tensor = torch.Tensor(x_nparray)          #torch.Size([480, 128])
+                z2, z1 = torch.split(x_tensor, int(x_tensor.shape[1]/2), dim = 1) # 2 x torch.Size([480, 64])
+                #----------from train_adv
+                # z = [z2, z1]
+                # Divide 64 features of z2 and z1 -> 128 features in 80% bzw 20%
+                size_w = int(0.2*z2.shape[1]) + 1           #von 64 features: 13  
+                size_z = int(0.8*z2.shape[1])               #von 64 features: 51
+                z2_w, z2_z = torch.split(z2, [size_w, size_z], dim = 1)    # torch.Size([480, 13]) # torch.Size([480, 51])
+                z1_w, z1_z = torch.split(z1, [size_w, size_z], dim = 1)    #torch.Size([bs, 13]) torch.Size([bs, 51])
+                z = torch.cat([z2_z, z1_z], 1)              #([480, 102])
+                                                            # y shape: (480,) 
+                #----------
+                # use just the z_0.8 as input for the accuracy calculation
+                z_series = pd.Series(z.numpy().tolist())
+                # len(z_series[0]) = 102
+                # z_series[0] is now list not np array any more
+                x = z_series
+                ###----------
 
             n_fold, refit, test_set = 5, False, None
             if _task == 'Biometrics_EMVIC':  # to compare with LPiTrack
@@ -251,19 +282,20 @@ class RepresentationEvaluator:
                     refit = 'accuracy'  # for feature importances
 
                 pipeline = Pipeline([('scaler', StandardScaler()), classifier])
-
+                
                 grid_cv = GridSearchCV(pipeline, params_grid, cv=n_fold,
                                        n_jobs=4,
                                        scoring=self.scorers,
                                        refit=refit)
                 grid_cv.fit(np.stack(x), y)
-
+                
                 acc = grid_cv.cv_results_['mean_test_accuracy'].max()
+                
                 logging.info('[{}] Acc: {:.4f}'.format(classifier[0], acc))
 
                 scores[_task][classifier[0]] = acc
 
-                if test_set is not None:
+                if test_set is not None and not self.acc_z_0_8:
                     x_, y_ = test_set
                     # self._log_labels(x_, y_)
                     test_acc = grid_cv.score(np.stack(x_), y_)

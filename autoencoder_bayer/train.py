@@ -190,9 +190,10 @@ class Trainer:
                 if e < 1:
                     #self.tensorboard_first_epoch.add_scalar(f"loss in first epoch", self.currentLoss, b)
                     self.tensorboard_first_epoch_train.add_scalar(f"loss in first epoch TRAIN", self.currentLoss, b)
+                '''
                 if b == 0:
                     break
-                
+                '''
                 #-B----
 
             # save the train loss of the whole epoch
@@ -368,7 +369,7 @@ class Trainer:
 
 
 args = get_parser().parse_args()
-run_identifier = f"SyBa_{args.hz}Hz_{args.signal_type}_ETRA_FIFA_EMVIC" #datetime.now().strftime('%m%d-%H%M')
+run_identifier = f"SyBa_{args.hz}Hz_{args.signal_type}_ETRA_FIFA_EMVIC_adaptedPreprocessDVAincl" #datetime.now().strftime('%m%d-%H%M')
 setup_logging(args, run_identifier)
 print_settings()
 

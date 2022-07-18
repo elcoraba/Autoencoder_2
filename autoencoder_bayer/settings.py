@@ -34,8 +34,8 @@ PX_PER_DVA = 35  # pixels per degree of visual angle
 RAND_SEED = 123
 
 #-B----
-TRAIN_NUM_EPOCHS = 1000
-TRAIN_SAVE_LOSS_EVERY_X_BATCHES = 100
+TRAIN_NUM_EPOCHS = 25
+TRAIN_SAVE_LOSS_EVERY_X_BATCHES = 500
 
 #For adversarial training
 ADV_TRAIN_NUM_EPOCHS = 25
@@ -95,7 +95,7 @@ def get_parser():
     parser.add_argument("--rec-loss", default='mse', type=str,
                         help="mse or bce")
     parser.add_argument("-bs", "--batch-size", default=64, type=int)
-    parser.add_argument("-e", "--epochs", default=200, type=int)
+    parser.add_argument("-e", "--epochs", default=25, type=int)
     parser.add_argument("-lr", "--learning-rate", default=5e-4, type=float)
     parser.add_argument("--model-pos", default='', type=str)
     parser.add_argument("--model-vel", default='', type=str)
@@ -106,4 +106,11 @@ def get_parser():
     parser.add_argument("--generate", default=False, action="store_true")
     parser.add_argument("--task", default='', type=str,
                         help="task to train supervised CNN on")
+    # New settings by Bayer
+    # if the accuracy during adversarial learning should just be calculated with the 80% of z where the protected attribute was excluded
+    # python train_adversarial.py --signal-type=vel -bs=32 -hz=500 --accuracy-calc-with-z_08
+    parser.add_argument("--accuracy-calc-with-z_08", default=False, action="store_true")
+    # Plots of z and batch values (x&y, destroyed x&y, reconstructed x&y) 
+    parser.add_argument("--plot-representations-and-batchvalues", default=False, action="store_true")
+
     return parser
