@@ -1,37 +1,49 @@
 # GazeMAE
-This repo contains the code for the paper:
-**GazeMAE: General Representations of Eye Movements using a Micro-Macro Autoencoder**, accepted to [ICPR 2020](http://icpr2020.it).
-Preprint: https://arxiv.org/abs/2009.02437
+This repo contains the code for my Master's thesis:
+**Adversarial autoencoder for sampling rate independent gaze analysis**.
+
+This Master's thesis is based on the work of Bautista and Naval: GazeMAE: General Representations of Eye Movements using a Micro-Macro Autoencoder, accepted to ICPR 2020. Preprint: https://arxiv.org/abs/2009.02437 (github repo: https://github.com/chipbautista/gazemae).
 
 ## Data
-To run the code, you would need the data sets from the ff. websites/papers:
+The data for this thesis was downloaded from:
 1. **FIFA**: "Predicting human gaze using low-level saliency combined with face
     detection", Cerf M., Harel J., Einhauser W., Koch C., Neural Information Processing Systems (NIPS) 21, 2007. Get the data from [here](https://www.morancerf.com/publications). You need `general.mat`, `faces-jpg` folder, and `subjects` folder. Place them in `data/Cerf2007-FIFA` folder.
 2. **ETRA**: Check ETRA 2019 Challenge [here](https://etra.acm.org/2019/challenge.html). Place the files in `data/ETRA2019/` folder.
 3. **EMVIC**: Request data set from [here](http://kasprowski.pl/emvic/dataset.php). Place the files in `data/EMVIC2014/official_files/` folder.
-4. **MIT-LowRes**: "Fixations on Low-resolution Images", Tilke Judd, Frédo Durand, Antonio Torralba. JoV 2011. Check project page [here](http://people.csail.mit.edu/tjudd/LowRes/index.html). Place the files in `data/MIT-LOWRES/` folder.
 
-Then, create another folder where the code will automatically store the preprocessed datasets: `mkdir generated-data`
-
-## Training
-### Requirements
-Packages used are in requirements_conda.txt.
-Running a simple `conda install --file requirements_conda.txt` might work.
-But if it doesn't, here are the main packages used:
-- pytorch 1.2.0
-- cudatoolkit 10.0.130
-- scikit-learn 0.22.1
-- tensorboard 2.1.0
-- h5py 2.9.0
-- pandas 0.25.3
-- seaborn 0.10.0
-- future 0.18.2
-- tables 3.6.1 (install via pip)
+## Folders
+The following folders (red coloured) need to be created:
+```diff
++├── autoencoder_bayer
+-│   └── batchDisplay
+-│      └── MicroMacroZ                                     (visualization of z values)
+-│          └── withoutScaling
+-│      └── XandY                                           (visualization of x and y values: original, destroyed, reconstructed, loss_rec)
+-│          └── withoutScaling
++│   └── data                                               (datasets)
++│   └── evals                                              (classes for the evaluation of the autoencoder)
+-│   └── generated-data                                     (store preprocessed data)
++│   └── network
+-│   └── runs                                               (tensorboard data for loss_rec/reconstruction loss (SSE))
+-│   └── runs_accuracy                                      (tensorboard data for accuarcy of the tasks)
+-│   └── runs_CEL                                           (tensorboard data for loss_adv/adversarial loss (CEL))
+-└── models                                                 (here are the models saved every 5 epochs, e.g. vel-e4-hz500 (velocity autoencoder trained with 500Hz, saved after epoch 4))
+```
 
 ### Running the code
-With the data files in the correct locations, you should be able to run this Python command: `python train.py --signal-type=vel -bs=128 -vt=2 -hz=500 --hierarchical --slice-time-windows=2s-overlap`
+Open a command prompt when in "autoencoder_bayer" folder.
+To run the code: 
+- velocity adversarial autoencoder: python train_adversarial.py --signal-type=vel -bs=32 -hz=500
+- positional adversarial autoencoder: python train_adversarial.py --signal-type=pos -bs=32 -hz=500
+This trains the vel/pos model described in the Thesis, with the following settings: batch size is 32 and at 500 Hz sampling frequency. 
 
-This trains the velocity model described in the paper, with the following settings: batch size is 128, the gaze data is preprocessed into 2-second segments (`vt` or viewing time) and at 500 Hz sampling frequency. `hierarchical` means the AE uses the two-bottleneck architecture, and `2s-overlap` means the gaze data is preprocessed into overlapping 2-second segments. More arguments can be found in `settings.py`
+If you want to do the accuracy calculation just with the 80% of the features stripped from the sampling frequency information, do the following:
+- velocity adversarial autoencoder: python train_adversarial.py --signal-type=vel -bs=32 -hz=500 --accuracy-calc-with-z_08
+
+If you want the x and batch values to be visualized in the folder "batchDisplay", do the following:
+- velocity adversarial autoencoder: python train_adversarial.py --signal-type=vel -bs=32 -hz=500 --plot-representations-and-batchvalues
+
+For more adaptions have a look in the settings.py file. 
 
 ## Files/Codes
 ### Loading the datasets
@@ -44,9 +56,8 @@ The code for preprocessing the gaze data (normalization, cutting them up into se
 The architecture is defined in the files in `network/` folder. The autoencoder model is in `network/autoencoder.py`. but the actual layer functionalities are in `encoder.py` and `decoder.py`.
 
 
-## Pre-trained models
-I'm uploading the two main models described in the paper.
-1. `models/pos-i3738` - Position AE at iteration 3738
-2. `models/vel-i8528` - Velocity AE at iteration 8528
+## Models used in this Thesis can be found in the "autoencoder_bayer/models" folder
+0. AE_T
+1. ...
 
 To use the pre-trained model, you should be able to load it with `torch.load(model_file)`. For reference, all model functionalities (initializing, loading, saving) are found in `network/__init__.py`
