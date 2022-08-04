@@ -33,14 +33,11 @@ class EyeTrackingCorpus:
         self.dir = GENERATED_DATA_ROOT + self.name
         self.data = None
         
-        #B#########
         self.is_adv = False
-        ##########
 
     def load_data(self, load_labels=False, is_adv=False):
-        #B#########
         self.is_adv = is_adv
-        ##########
+
         logging.info('\n---- Loading {} data set with {}-sliced {} signals...'.format(
             self.name, self.slice_time_windows, self.signal_type))
         if self.slice_time_windows:
@@ -110,75 +107,32 @@ class EyeTrackingCorpus:
             
             # Needed to be added, because of evaluation.py. Because len(trial['timestep']) != len(trial['x']) would happen as with evaluation, sample_limit is not None
             # First: vt = 0, sample limit = None        Second/Evaluation: vt = 2, sample limit = 2000
-            trial.timestep = trial.timestep[:sample_limit] #New 
+            trial.timestep = trial.timestep[:sample_limit] 
             
-            #clip: Given an interval, values outside the interval are clipped to the interval edges
-            #print('0 ', trial.y[0:10])                                                                                #0  ... 484.74 482.94    nan    nan 572.74 573.02 591.9     nan ...
-            ##trial.x = np.clip(trial.x, a_min=self.min_x, a_max= self.max_x)
-            ##trial.y = np.clip(trial.y, a_min=self.min_y, a_max= self.max_y)
-            #print('1 ', trial.y)                                                                                #1  ... 484.74 482.94    nan    nan 572.74 573.02 591.9     nan ... 
-            #print(np.nanmin(trial.y))                                                                           #425.1
-            #print(np.nanmax(trial.y))                                                                           #591.9                                                                          
-            trial.x = trial.x - self.min_x #-> immer größer 0 dann
+            trial.x = trial.x - self.min_x 
             trial.y = trial.y - self.min_y
-            #print('2 ', trial.y[0:10])                                                                                #2  ... 59.64  57.84     nan    nan 147.64 147.92 166.8     nan ...
-            trial.x = trial.x / self.max_x #->  dann immer zwischen 0 und 1,  # Clip x and y values between 0 and 1
+                                                                                           
+            trial.x = trial.x / self.max_x 
             trial.y = trial.y / self.max_y
-            #print('3 ', trial.y[0:10])                                                                                #3 ... 0.35755396 0.34676259        nan nan 0.88513189 0.88681055 1.                nan ... 
+                                                                                                          
             trial.x = np.clip(trial.x, a_min = -1, a_max = 2)
             trial.y = np.clip(trial.y, a_min = -1, a_max = 2)
-
-            ######## just to be sure
-            #(vel NN): hab das eingerückt, das sonst zB minus Werte bei EMVIC, auf Nan gesetzt werden
-            ##trial.x[np.where(trial.x < 0)] = float("nan") # was = 0
-            ##trial.y[np.where(trial.y < 0)] = float("nan")
-            #print('4 ', trial.y[0:10]) 
                 
             x_nan = np.isnan(trial.x)                   
-            y_nan = np.isnan(trial.y)                   #y_nan_idx = 0       False  1       False ...
+            y_nan = np.isnan(trial.y)                   
             
             # just ETRA has NANs in its raw data
             # if trial just consists out of Nans we can't do a interpolation
             if sum(x_nan)> 0 and len(trial.x) > sum(x_nan):
-                #print('Interpolate Nans')
-                #idx = np.where(np.isnan(trial.x))
-                #print('idx ', idx)
-                #print(trial.x[585-10:585])
-                #print(trial.x[620:620+10])
-                #print('0 ', trial.x[idx])
                 trial.x = du.interpolate_nans(trial.x)
-                #print(' ', trial.x[idx])
+                
             if sum(y_nan)> 0 and len(trial.y) > sum(y_nan):
-                #print('Interpolate Nans')
-                #idx = np.where(np.isnan(trial.y))
-                #print('subj ', trial.subj ,'stim ', trial.stim , 'task ', trial.task)
-                #print(len(trial.y))
-                #print(sum(y_nan))
-                #print('0 ', trial.y)#[idx])
                 trial.y = du.interpolate_nans(trial.y)
-             
-            #########
-            ''' # Nehmen wir raus, da normalisierung davor schon reicht
-            # scale coordinates so 1 degree of visual angle = 35 pixels
-            try:
-                scale_value = PX_PER_DVA / self.px_per_dva
-                trial[['x', 'y']] *= scale_value
-            except AttributeError:  # if corpora has no information about dva
-                #TODO do back when new dataset
-                #print('Scale Value preprocess problem')
-                pass
-            '''
-
-            # As we just do the clipping when we have 'pos' here would faults appear when when don't include the if
-            #if self.signal_type == 'pos':
             
             assert np.all(trial.x >= -1) and np.all(trial.x <= 2), 'Problem! A x-Value in the dataset is not between -1 and 2'   + 'Trial: ' + trial.subj + ' Stimulus: ' + trial.stim + ' Value below 0: ' + str(np.argwhere(trial.x < 0)) + ' ' + str(trial.y[np.argwhere(trial.x < 0)]) + ' Value above 1: ' + str(np.argwhere(trial.x > 1)) + ' ' + str(trial.y[np.argwhere(trial.x > 1)])
             assert np.all(trial.y >= -1) and np.all(trial.y <= 2), 'Problem! A y-Value in the dataset is not between -1 and 2: ' + 'Trial: ' + trial.subj + ' Stimulus: ' + trial.stim + ' Value below 0: ' + str(np.argwhere(trial.y < 0)) + ' ' + str(trial.y[np.argwhere(trial.y < 0)]) + ' Value above 1: ' + str(np.argwhere(trial.y > 1)) + ' ' + str(trial.y[np.argwhere(trial.y > 1)])      
-            #-B---  
-            
-            #-B----
+
             trial = self.validate_data(trial)
-            #-B----
             
             if self.is_adv:
                 if self.hz > trial.balancedHz[0]:
@@ -199,13 +153,9 @@ class EyeTrackingCorpus:
                 elif self.resample == 'up':
                     trial = du.upsample(trial, self.effective_hz, self.hz)
 
-            ##TODOOO?: self.hz = balancedSR
-
-            #-B----
             #Do assert again, just to be sure up or downsampling didn't do something crazy
             assert np.all(trial.x >= -1) and np.all(trial.x <= 2), 'Problem! A x-Value in the dataset is not between -1 and 2'   + 'Trial: ' + trial.subj + ' Stimulus: ' + trial.stim + ' Value below 0: ' + str(np.argwhere(trial.x < 0)) + ' Value above 1: ' + str(np.argwhere(trial.x > 1))
             assert np.all(trial.y >= -1) and np.all(trial.y <= 2), 'Problem! A y-Value in the dataset is not between -1 and 2: ' + 'Trial: ' + trial.subj + ' Stimulus: ' + trial.stim + ' Value below 0: ' + str(np.argwhere(trial.y < 0)) + ' Value above 1: ' + str(np.argwhere(trial.y > 1))       
-            #-B----
             
             return trial
         logging.info('Preprocessing the data')
@@ -215,7 +165,6 @@ class EyeTrackingCorpus:
                 
         ############################################################
         # [subj stim task x y balancedHz]
-        #print(self.data.shape)         #(x,7)
         
         # For normal training
         if self.is_adv == False:
@@ -232,49 +181,25 @@ class EyeTrackingCorpus:
         ############################################################
 
         self.data = self.data.apply(preprocess, 1)
-        ''' OLD vel calc
+
         if 'vel' in self.signal_type:
             logging.info('Calculating velocities...')
-            ms_per_sample = 1000 / self.effective_hz
-            self.data['v'] = self.data[['x', 'y']].apply(
-                lambda x: np.abs(np.diff(np.stack(x))).T, 1) / ms_per_sample
-        '''
-        #-B----
-        if 'vel' in self.signal_type:
-            logging.info('Calculating velocities...')
-            #(x_old - x_new/diff timestep) # with variable timesteps 
             self.data['v'] = self.data[['x', 'y']].apply(lambda x: np.abs(np.diff(np.stack(x))).T, 1)
             div = self.data[['timestep']].apply(lambda x: np.abs(np.diff(np.stack(x))).T, 1)
-            #print(self.data['v'][0].shape)
-            #print(self.data['v'][1].shape)
-            #print(div.shape)
-            self.data['v'] = self.data['v'].divide(div) # TODO stack und abs entfernen?
-            #TODO Try to scale the velocity values up
+            self.data['v'] = self.data['v'].divide(div) 
             self.data['v'] = self.data['v'] * 100           
-
-            ####FIFA
-            #v: [[0.0, 0.000996946495305795], [0.0005607824036... (3200,0), v[0].shape = (2020,2) (cols, rows)
-            #div: [[1], [1], [1], [1],... (3200,0), div[0].shape = (2020,1)
-            #final v: [[0.0, 0.000996946495305795], [0.0005607824036... (3200,0)  
-            #####
       
-
-        ###  Throw out NaN values
-        x_nan_idx = self.data['x'].isna()                   #self.data is a Dataframe, self.data['x'] is a Series
-        y_nan_idx = self.data['y'].isna()                   #y_nan_idx = 0       False  1       False ...
+        x_nan_idx = self.data['x'].isna()                   
+        y_nan_idx = self.data['y'].isna()                   
 
         if sum(x_nan_idx)> 0 or sum(y_nan_idx)> 0:
-            print('Still Nans ############################################ ')
-            input('Still Nans left. Press Enter to continue...')
             idx = (x_nan_idx | y_nan_idx)
             self.data['x'] = self.data['x'][~idx]
             self.data['y'] = self.data['y'][~idx]   
-        #-B----
 
         if self.slice_time_windows:
             hdf5_dataset = self.write_slices_to_h5()
             self.data = hdf5_dataset
-            #print('Size of slices ', len(self.data))
 
     def slice_trials(self):
         def _slice(trial, trial_num):
@@ -318,28 +243,14 @@ class EyeTrackingCorpus:
             chunk_start = 0
             while chunk_start < len(df):
                 chunk = df.iloc[chunk_start: chunk_start + chunk_size]
-                #---
-                #ETRA: chunk['x'] == pandas Series                
-                #print(chunk.info(verbose = True))
-                #series.loc[:] = 5 * series[:]-> needs to be list/[]
-
                 trialLengths = np.array(list(map(lambda x: len(x), chunk['x'].to_numpy())))
                 temp = chunk['balancedHz'].to_numpy() * trialLengths 
                 chunk['balancedHz'] = temp
                 
-                '''
-                OLD version :
-                temp = np.stack(chunk.apply(
-                        lambda x: du.pad(self.slice_length,
-                                     np.stack(x[['x', 'y']]).T), 1))
-                '''
                 yield np.stack(chunk.apply(
                     lambda x: du.pad(self.slice_length,
                                      np.stack(x[['x', 'y', 'balancedHz']]).T), 1)) 
-                '''
-                [array([[[3.7500e-02, 1.2750e-01, 1.0000e+03],
-                [1.5000e-01, 1.9050e-01, 1.0000e+03], ...
-                '''
+
                 chunk_start += chunk_size
             
 
@@ -370,18 +281,12 @@ class EyeTrackingCorpus:
             len(slices_df), self.hdf5_fname))
         return hdf5_dataset
 
-#-B-----------------------------------------------------------------------------
     def validate_data(self, trial):
         #Adapt trial, if sampling freq is not continous - add timestamps in between
         trial = self.change_in_sampling_freq(trial)
 
         return trial
     
-    #The calculated sampling frequency in subject  JP and trial  0103 differs from the given frequency 1000
-    #Calculated sampling frequency:  951.9564140663695
-    #Change in sampling freq.:  subj:  JP trial:  0098 timestamp:  18703378   18703385
-    #Matlab: exp 2.000000 trial 74.000000 t 431.000000              -> trial 0103 ist an 74ster Stelle von self.stimuli
-
     #Fill gaps in dataset before any up/downsampling is done
     def change_in_sampling_freq(self, trial):
         point_pairs = []
@@ -392,17 +297,8 @@ class EyeTrackingCorpus:
                 point_pairs.append((trial.timestep[i], trial.timestep[i+1]))
         # Were there any gaps in the data found? Then do the upsampling
         if len(point_pairs) > 0: 
-            #if trial['subj'] == 'WS' and trial['stim'] == '0117.jpg':
-            #    np.savetxt(f"FIFA_holes_subj {trial['subj']}_stim {trial['stim']}_xy_beforeHoleFilling.csv", list(zip(trial['timestep'], trial['x'], trial['y'])), delimiter=',', header='t,x,y')
-                #np.savetxt(f"FIFA_holes_subj {trial['subj']}_stim {trial['stim']}_y.csv", list(zip(trial['timestep'], trial['y'])), delimiter=',')
-                #exit()
-
-            #print('Adapt sampl.freq. ', 'subj: ', trial.subj, 'stim: ', trial.stim)
             trial = du.upsample_between_timestamp_pairs(trial, point_pairs, self.step) 
 
-            #if trial['subj'] == 'DA' and trial['stim'] == '0034.jpg' or trial['subj'] == 'DA' and trial['stim'] == '0126.jpg' or trial['subj'] == 'DA' and trial['stim'] == '0164.jpg' or trial['subj'] == 'DA' and trial['stim'] == '0200.jpg' or trial['subj'] == 'DA' and trial['stim'] == '0219.jpg' or trial['subj'] == 'TS' and trial['stim'] == '0050.jpg' or trial['subj'] == 'TS' and trial['stim'] == '0122.jpg' or trial['subj'] == 'TS' and trial['stim'] == '0150.jpg' or trial['subj'] == 'WS' and trial['stim'] == '0065.jpg' or trial['subj'] == 'WS' and trial['stim'] == '0066.jpg' or trial['subj'] == 'WS' and trial['stim'] == '0077.jpg' or trial['subj'] == 'WS' and trial['stim'] == '0085.jpg' or trial['subj'] == 'WS' and trial['stim'] == '0117.jpg':
-            #    np.savetxt(f"FIFA_holes_subj {trial['subj']}_stim {trial['stim']}_xy_afterHoleFilling_linear.csv", list(zip(trial['timestep'], trial['x'], trial['y'])), delimiter=',',header ='t,x,y')
-        
         return trial
 
    

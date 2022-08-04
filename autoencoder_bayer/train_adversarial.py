@@ -1,5 +1,5 @@
 #tensorboard --logdir=runs
-#tensorboard --logdir=possiblePlots\originaltestsize02\POS
+
 import time
 import logging
 from datetime import datetime
@@ -38,12 +38,11 @@ class CSVAE:
         else:
             self.model.network = self.model.network.to(self.device)
 
-        #self.rec_loss = args.rec_loss #MSE
         self.hz = args.hz
         self.signal_type = args.signal_type
         self.acc_z_0_8 = args.accuracy_calc_with_z_08
         self.plot = args.plot_representations_and_batchvalues
-        #-B----
+        
         # introduced two summary writer, so we can see the two functions in one graph in tensorboard
         self.tensorboard_train = SummaryWriter(f"runs/{run_identifier}_trainLoss")
         self.tensorboard_val = SummaryWriter(f"runs/{run_identifier}_valLoss")
@@ -54,7 +53,6 @@ class CSVAE:
         self.CELtensorboard_val = SummaryWriter(f"runs_CEL/CEL_{run_identifier}_valLoss")
         self.CELtensorboard_first_epoch_train = SummaryWriter(f"runs_CEL/CEL_{run_identifier}_FIRSTepoch_trainLoss")
         self.CELtensorboard_first_epoch_val = SummaryWriter(f"runs_CEL/CEL_{run_identifier}_FIRSTepoch_valLoss")
-        #-B----
 
         self._load_data()
         self._init_loss_fn(args)
@@ -82,12 +80,7 @@ class CSVAE:
                 if self.dataset.val_set else None)
 
     def _init_loss_fn(self, args):
-        #self._loss_types = ['total']
-        #self._loss_types.append('rec')
         self.loss_fn = nn.MSELoss(reduction='none')
-        
-        # (was taken out again) ignore_index = 6: ignores class labels with index 6 -> Hz = 0
-        # corpus.py - iter_slice_chunks: does include padding - Therefore rows like [0 0 0] are added
         self.loss_adv = nn.CrossEntropyLoss()
 
     def _init_evaluator(self):
@@ -120,9 +113,7 @@ class CSVAE:
             self.tensorboard_acc_train = None
             self.tensorboard_acc_val = None
     
-   #-B---- #was self.running_loss[dset]['total'] -> now self.running_loss[dset]
-   #saves loss every 100 batches
-   # was reset_running_loss_100
+   #saves loss every X batches
     def init_running_loss_100(self):
         self.running_loss_100 = {'train': 0.0,
                                  'CELtrain': 0.0}
@@ -132,7 +123,6 @@ class CSVAE:
         self.running_loss = {'train': 0.0,'val': 0.0,
                              'CELtrain': 0.0, 'CELval': 0.0}
     
-    # was init_global_losses_100
     def init_epoch_losses_100(self, num_checkpoints):
         amount_checkpoints = int(num_checkpoints * (int(len(self.train_dataloader)/TRAIN_SAVE_LOSS_EVERY_X_BATCHES)) ) +1
         self.global_losses_100 = {
@@ -141,7 +131,6 @@ class CSVAE:
             'CELtrain': np.zeros(amount_checkpoints),
             'CELval': np.zeros(amount_checkpoints)}
        
-    # was init_global_losses
     def init_epoch_losses(self, num_checkpoints):
         self.epoch_losses = {
             'train': np.zeros(num_checkpoints),
@@ -150,15 +139,8 @@ class CSVAE:
             'CELval': np.zeros(num_checkpoints),
             }
 
-    #just used for first epoch, saves loss for every batch
     def init_currentLoss(self):
         self.currentLoss = {'MSE': 0.0, 'CEL': 0.0}
-    
-   #-B----  
-
-   #TODO Add early stopping?
-
-   #TODO Add batch_to_color & batch_diff_to_color?
 
     def train(self):
         logging.info('\n===== STARTING TRAINING WITH ADVERSARIAL =====')
@@ -172,27 +154,25 @@ class CSVAE:
 
         t = tqdm(range(0, ADV_TRAIN_NUM_EPOCHS))
         for e in t:
-        #while i < MAX_TRAIN_ITERS:
             self.init_running_loss()
             self.init_running_loss_100()
 
             self.model.network.train()
             for b, batch in enumerate(tqdm(self.train_dataloader, desc = 'Train Batches')):
                 # two forward passes for the two optimizers
-                sample, sample_rec = self.forward(batch, e, b) #need e & b for displaying z_all
+                sample, sample_rec = self.forward(batch, e, b) 
                 self.forward_adv(batch) 
 
-                #-B----
                 #save running loss 100 and reset it
                 if (b+1) % TRAIN_SAVE_LOSS_EVERY_X_BATCHES == 0:
                     mean_loss = self.running_loss_100['train'] / TRAIN_SAVE_LOSS_EVERY_X_BATCHES
-                    self.global_losses_100['train'][counter_100] = mean_loss                       #e*len(self.dataloader) + b
+                    self.global_losses_100['train'][counter_100] = mean_loss                       
                     self.tensorboard_train.add_scalar(f"loss_per_{TRAIN_SAVE_LOSS_EVERY_X_BATCHES} batches", mean_loss, counter_100)
-                    #---
+                    
                     CELmean_loss = self.running_loss_100['CELtrain'] / TRAIN_SAVE_LOSS_EVERY_X_BATCHES
                     self.global_losses_100['CELtrain'][counter_100] = CELmean_loss                       
                     self.CELtensorboard_train.add_scalar(f"CEL loss_per_{TRAIN_SAVE_LOSS_EVERY_X_BATCHES} batches", CELmean_loss, counter_100)
-                    #---
+                    
                     self.init_running_loss_100()
                     counter_100 +=1
 
@@ -210,8 +190,7 @@ class CSVAE:
                 if b == 0:
                     break
                 '''
-                #-B----
-
+                
             # save the train loss of the whole epoch
             self.logB(e, 'train')
             
@@ -240,44 +219,34 @@ class CSVAE:
             #evaluation
             if (e + 1) % 1 == 0: #TODO 10
                 print('---------------------Evaluation---------------------')
-                #@thomas classifier bekommt nur w?
                 self.evaluate_representation(sample, sample_rec, e, self.tensorboard_acc_train, True)
                 self.evaluate_representation(sample_v, sample_rec_v, e, self.tensorboard_acc_val, False)
 
                 
             self.logB(e, 'val') 
-            t.set_postfix(loss = (self.epoch_losses['train'][e], self.epoch_losses['val'][e])) # print losses in tqdm bar
+            t.set_postfix(loss = (self.epoch_losses['train'][e], self.epoch_losses['val'][e])) 
             # Save Model every epoch
             if self.save_model and (e+1)%5 == 0:
                 self.model.save(e, run_identifier, self.epoch_losses, self.global_losses_100, run_identifier, args, True)
             
     # forward encoder & decoder
     def forward(self, batch, e, b):
-        # batch[0]: signal(x & y values), batch[1]: balancedHz --> data.py: __getitem__
         labelsHz = batch[1]     #Hz values
         batch = batch[0]        # x & y values 
 
         rand_idx = np.random.randint(0, batch.shape[0])
         
-        # shape batch
-        # ([32, 2, 1000]) (32,)
         batch = batch.float()
-        tensor_labels = self.getLabel(labelsHz) # [32] -> [bs]
-        if self.cuda == True and self.device.type == 'cuda':     #batch = batch.to(self.device)
+        tensor_labels = self.getLabel(labelsHz) 
+        if self.cuda == True and self.device.type == 'cuda':     
             batch = batch.cuda()
             tensor_labels = tensor_labels.cuda()
 
         _is_training = self.model.network.training
         dset = 'train' if self.model.network.training else 'val'
-        
-        #############################################################
-        #decoder: out | encoder: z, mean, logvar  -> output of whole Autoencoder
 
-        #ENCODING
         z_all, mean, logvar = self.model.network.encode(batch, cat_output=False) 
         # z_all is a list, consists of two tensors z2,z1
-        # bs 64: z_all: z_0 torch.Size([64, 64]) z_1 torch.Size([64, 64])       bs 128: torch.Size([128, 64])   torch.Size([128, 64])
-        # tensor z_all[0/1]: bs x features #z_all[0/1].shape #bs = 32: [32, 64]
         
         #Display z just once every epoch 
         if b == 0 and self.plot:
@@ -291,19 +260,13 @@ class CSVAE:
         z1_w, z1_z = torch.split(z_all[1], [size_w, size_z], dim = 1)    #torch.Size([bs, 13]) torch.Size([bs, 51])
         z = cat([z2_z, z1_z], 1)    # torch.Size([bs, 102]) 2*51 = 2*size_z
         
-        #DECODING
-        out_decX, destroyedBatch = self.model.network.decoder(z_all, batch, is_training=_is_training) #gets w & z
+        out_decX, destroyedBatch = self.model.network.decoder(z_all, batch, is_training=_is_training) 
         #Display destroyed input batch from decoder for a certain, randomly chosen, batch
         # same random batch as sample & sample_rec
         if dset == 'train' and b == 0 and self.plot:
             self.batch_to_color(destroyedBatch[rand_idx,:,:-1], f"XandY", f"epoch{e}-destroyed batch")
         
         out_adversary = self.model.network.adversary_decoder(z) 
-        #print('out adversary ', out_adversary.shape)
-        #print(out_adversary)
-        # TODO z.detach()? loss backward fixen?
-        # TODO eventuell Netz zweimal laufen lassen, damit z_all nicht in beiden losses/backward drin ist. Erst ertes Netz traineren und auf 0 setzen, dann zweotes Netz
-        #adversary needs another network! -> See TCNAUTOENCODER
         
         #loss = MSE(output, target)
         reconstructed_batch = out_decX
@@ -315,23 +278,10 @@ class CSVAE:
         
         #loss = CEL, label - output [self.hz]
         #tensor_labels for 500Hz: 4 (index) (0 0 0 0 1 0 (classes: 30 60 120 250 500 1000))
-        '''
-        #Old label calc - just one Hz rate
-        tensor_labels = torch.tensor(self.getLabel(self.hz), dtype = int)
-        tensor_labels = tensor_labels.repeat(out_adversary.shape[0])        #bs 128: torch.Size([204]) # tensor([4, 4, 4, 4, ....
-        '''
-        #print(out_adversary.shape, out_adversary)   #[50, 6]
-        #print(tensor_labels.shape, tensor_labels)   #[50])
-        loss_adv = self.loss_adv(out_adversary, tensor_labels) #* (10**9) # input w? #TODO tensor_labels.cuda()
-        #print('loss adv: ############################### ', loss_adv.shape, loss_adv)      
+        loss_adv = self.loss_adv(out_adversary, tensor_labels)     
         
         self.running_loss[str('CEL' + dset)] += loss_adv.item()
-        self.currentLoss['CEL'] = loss_adv
-        
-        # adversary darf nicht parameter vom encoder & decoder_x ändern können nur vom adversary
-        # tasks: sampling rate oder TODO subject
-        # get_item: soll auch label mit rausgeben
-        
+        self.currentLoss['CEL'] = loss_adv        
 
         #update network if we are training
         if self.model.network.training:
@@ -340,22 +290,9 @@ class CSVAE:
            
             # Hier adv_loss minimieren
             self.model.optim_basis.zero_grad()
-            # loss: old: loss_combo = loss_decX + (- loss_adv)
-            # loss_decX - (1/(loss_adv)) * 10**9)
-            # 5e-324 added to not get Nan values if to small
-            ##loss_combo = loss_decX - (1/(loss_adv + sys.float_info.min))#*10 #(- loss_adv)
             loss_combo = loss_decX - (loss_adv*10)
-            #print('loss combo: ', loss_decX, '-', loss_adv, '=', loss_combo)
             loss_combo.backward()
-            self.model.optim_basis.step()       #decX output
-           
-            #TODO * 100 macht keinen Unterschied bei ADAM?
-            #print(self.model.network.encoder.blocks[-1].conv2[1].weight.grad)
-            
-            # Ideen
-            # pytorch lightning: tuorial mehrere optimizer
-            # loss_adv_2: loss_adv zweimal berechnen (solves detach problem?)
-            # anderen Optimizer: stochastic gradient decent (*100 *1000 Problem)
+            self.model.optim_basis.step()       
 
         return batch[rand_idx].cpu(), reconstructed_batch[rand_idx].cpu()
 
@@ -384,11 +321,7 @@ class CSVAE:
                                    
         out_adversary = self.model.network.adversary_decoder(z)
         
-        loss_adv = self.loss_adv(out_adversary, tensor_labels) #TODO auch? * 1000 
-        
-        # adversary darf nicht parameter vom encoder & decoder_x ändern können nur vom adversary
-        # tasks: sampling rate oder TODO subject
-        # get_item: soll auch label mit rausgeben
+        loss_adv = self.loss_adv(out_adversary, tensor_labels) 
         
         #update network if we are training
         if self.model.network.training:
@@ -476,15 +409,8 @@ class CSVAE:
     
     
     #Returns the index/Class of the Label
-    #tensorHz: tensor([ [1000., 1000., 1000.,  ...,    0.,    0.,    0.],
-    #                   [1000., 1000., 1000.,  ..., 1000., 1000., 1000.], ...
-    #tensor which has list of tensors
-
     def getLabel(self,  tensorHz): 
-        def getIndx(Hz):
-            #print('Hz', Hz.item())
-            # 0 is added here, as some trials are padded an then get balancedHz value = 0
-            # class 6 shouldn't appear in final labelsasclasses         
+        def getIndx(Hz):        
             possibleHz = [30,60,120,250,500,1000,0]
             indx = possibleHz.index(Hz)
             return indx
@@ -493,16 +419,8 @@ class CSVAE:
         labelasclasses = labelasclasses[:,0]
         
         assert not labelasclasses.__contains__(6), 'train_adv-getLabel: Class 6 appeared - just a padded trial? corpus.py - iter_clice_chunks. Just skip this batch then?'
-        # [5 2 5 4 3 4 5 3 5 5 4 3 4 4 5 3 2 3 4 5 4 4 4 5 0 4 4 5 5 2 4 5]
         return torch.tensor(labelasclasses, dtype=torch.long)
-    '''
-    [2 2 2 2 2 2 2 2 2 2 2 2 2 2 2 2 2 2 2 2 2 2 2 2 2 2 2 2 2 2 2 2 2 2 2 2 2
-    2 2 2 2 2 2 2 2 2 2 2 2 2 2 2 2 2 2 2 2 2 2 2 2 2 2 2 2 2 2 2 2 2 2 2 2 2
-    2 2 2 2 2 2 2 2 2 2 2 2 2 2 2 2 2 2 2 2 2 2 2 2 2 2 2 2 2 2 2 2 2 2 2 2 2
-    2 2 2 2 2 2 2 2 2 2 2 2 2 2 2 2 2 2 2 2 2 2 2 2 2 2 2 2 2 2 2 2 2 2 2 2 2
-    2 2 2 2 2 2 2 2 2 2 2 2 2 2 2 2 2 2 2 2 2 2 2 2 2 2 2 2 2 2 2 2 2 2 2 2 2
-    2 2 2 2 6 6 6 6 6 6 6 6 6 6 6 6 6 6 6 6 6 6 6 6 6 6 6 6 6 6 6 6 6 6 6 6 6 ...
-    '''
+    
 
     #batch is a random chosen batch [rand_inx, 2, 1000] (bs = 32: [32,2,1000])
     #directory either 'MicroMacroZ' or 'XandY'
@@ -603,14 +521,12 @@ class CSVAE:
 
 
 args = get_parser().parse_args()
-#run_identifier = f"ADV2new-SyBa_{args.hz}Hz_{args.signal_type}_ETRA_FIFA_EMVIC" #datetime.now().strftime('%m%d-%H%M')
 run_identifier = f"ADV-SyBa_{args.hz}Hz_{args.signal_type}_test"
 setup_logging(args, run_identifier)
 print_settings()
 
 logging.info('\nRUN ADVERSARIAL: ' + run_identifier + '\n')
 print('Arguments ', args)
-#logging.info('Arguments ', str(args))
 
 adversarial = CSVAE()
 adversarial.train()

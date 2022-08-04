@@ -70,28 +70,28 @@ def get_parser():
     parser.add_argument("-v", "--verbose", default=False,
                         action="store_true")
     parser.add_argument("-ae", "--autoencoder", default="temporal", type=str)
-    parser.add_argument("--save-model", default=True, action="store_true")             #----
-    parser.add_argument("--tensorboard", default=True, action="store_true")            #----
+    parser.add_argument("--save-model", default=True, action="store_true")             
+    parser.add_argument("--tensorboard", default=True, action="store_true")            
     # Encoder Settings
     parser.add_argument("--encoder", default='vanilla_tcn')
     parser.add_argument("--multiscale", default=False, action="store_true")
     parser.add_argument("--causal-encoder", default=False, action="store_true")
-    parser.add_argument("--hierarchical", default=True, action="store_true")           #----
+    parser.add_argument("--hierarchical", default=True, action="store_true")           
     # Data Settings
     parser.add_argument("-hz", default=0, type=int)
     parser.add_argument("-vt", "--viewing-time",
                         help="Cut raw gaze samples to this value (seconds)",
-                        default=2, type=float)                                         #---- -1
+                        default=2, type=float)                                         
     parser.add_argument("--signal-type", default='pos', type=str,
                         help="'pos' or 'vel'")
-    parser.add_argument("--slice-time-windows", default="2s-overlap", type=str,        #---- was None
+    parser.add_argument("--slice-time-windows", default="2s-overlap", type=str,        
                         help="'2s-overlap' or '2s-disjoint'")
     parser.add_argument("--augment", default=False, action="store_true")
     # Training Settings
     parser.add_argument("--loss-type", default='', type=str,
                         help="supervised or none")
-    parser.add_argument("--use-validation-set", default=True, action="store_true")      #----
-    parser.add_argument("--cuda", default=True, type=bool)                             #----
+    parser.add_argument("--use-validation-set", default=True, action="store_true")     
+    parser.add_argument("--cuda", default=True, type=bool)                             
     parser.add_argument("--rec-loss", default='mse', type=str,
                         help="mse or bce")
     parser.add_argument("-bs", "--batch-size", default=64, type=int)

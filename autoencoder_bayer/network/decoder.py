@@ -18,19 +18,17 @@ class CausalDecoder(nn.Module):
         self.in_dim = int(args.hz * args.viewing_time)
         self.in_channels = 2
 
-        self.input_dropout = input_dropout  # prob to zero
+        self.input_dropout = input_dropout  
         self.filters = filters
         self.dilations = dilations
         self.kernel_size = kernel_size
         self.blocks = nn.ModuleList([])
         self.latent_projections = nn.ModuleList([])
 
-        #-B---
         if args.cuda and cuda.is_available():
             self.device = device('cuda')
         else:
             self.device = device('cpu')
-        #-B---
 
         for block_num, f in enumerate(self.filters):
             if block_num == 0:
@@ -62,7 +60,6 @@ class CausalDecoder(nn.Module):
         # pad the input at its left so there is no leak from input t=1 to
         # output t=1. should be: output for t=1 is dependent on input t=0
         x = cat((x_true, zeros(x_true.shape[0], 2, 1).to(self.device)), dim=2)
-        #x = cat((x_true, zeros(x_true.shape[0], 2, 1).cuda()), dim=2)
 
         x = nn.functional.dropout(x, self.input_dropout, is_training)
         destroyedBatch = x  #just to display
@@ -102,8 +99,7 @@ class CausalBlock(ResidualBlock):
             out = self.bn2(out)
         return out
 
-#-B---
-# TODO DECODER adv: 3 linear layer, z as input, RELU, evtl one hot encoding
+# DECODER adv: 3 linear layer, z as input, RELU
 class AdversaryDecoder(nn.Module):
     def __init__(self, args):
         super(AdversaryDecoder, self).__init__()
@@ -111,16 +107,13 @@ class AdversaryDecoder(nn.Module):
             ('linear1', nn.Linear(102, 500)), ('relu1', nn.ReLU()),      #was (64,500) when batch was divided in 80/20% and not the features
             ('linear2', nn.Linear(500, 200)), ('relu2', nn.ReLU()), 
             ('final_linear', nn.Linear(200, 6))
-        ]))# output should be bsx6
+        ]))
         # classes: 30 60 120 250 500 1000 -> 6
-        # das ist dann schon das one-hot encoding, brauche es also nicht nochmal extra
 
     def forward(self, z):
-        # z shape: torch.Size([204, 64]) ((bs * 2) 80% x 64)
-        out = self.adv_model(z) #out: torch.float32
-        # torch.Size([204, 6]) (bs x 6)
+        out = self.adv_model(z) 
         return out
-#-B---
+
 
 class AutoregressiveDecoder(nn.Module):
     def __init__(self, args, kernel_size, filters, dilations, latent_dim):
@@ -188,11 +181,8 @@ class AutoregressiveDecoder(nn.Module):
 
         self._init_conv_queues(z.shape[0])
         predictions = zeros(z.shape[0], self.in_channels, self.in_dim).to(self.device)
-        #predictions = zeros(z.shape[0], self.in_channels, self.in_dim).cuda()
         x = zeros(z.shape[0], 2, 1).to(self.device)
-        #x = zeros(z.shape[0], 2, 1).cuda()
 
-        # z_projection = self.latent_projections[0](z)
         z_projections = [p(z) if p else None for p in self.latent_projections]
         for i in range(self.in_dim + 1):
 

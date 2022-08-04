@@ -21,7 +21,8 @@ from tqdm import tqdm
 np.random.seed(RAND_SEED)
 manual_seed(RAND_SEED)
 
-
+# Don't use, as data structure was altered for train_adversarial
+# for a working train.py, have a look at https://github.com/chipbautista/gazemae
 class Trainer:
     def __init__(self):
         self.model = ModelManager(args)
@@ -34,16 +35,14 @@ class Trainer:
         else:
             self.model.network = self.model.network.to(self.device)
 
-        self.rec_loss = args.rec_loss #MSE
+        self.rec_loss = args.rec_loss 
         self.epochs = args.epochs
 
-        #-B----
         # introduced two summary writer, so we can see the two functions in one graph in tensorboard
         self.tensorboard_train = SummaryWriter(f"runs/{run_identifier}_trainLoss")
         self.tensorboard_val = SummaryWriter(f"runs/{run_identifier}_valLoss")
         self.tensorboard_first_epoch_train = SummaryWriter(f"runs/{run_identifier}_FIRSTepoch_trainLoss")
         self.tensorboard_first_epoch_val = SummaryWriter(f"runs/{run_identifier}_FIRSTepoch_valLoss")
-        #-B----
 
         self._load_data()
         self._init_loss_fn(args)
@@ -65,8 +64,6 @@ class Trainer:
             if self.dataset.val_set else None)
 
     def _init_loss_fn(self, args):
-        #self._loss_types = ['total']
-        #self._loss_types.append('rec')
         self.loss_fn = nn.MSELoss(reduction='none')
 
     def _init_evaluator(self):
@@ -96,27 +93,7 @@ class Trainer:
         else:
             self.tensorboard_acc_train = None
             self.tensorboard_acc_val = None
-    
-    '''
-    def reset_epoch_losses(self):
-        self.epoch_losses = {'train': 0.0}
-        #{'train': {l: 0.0 for l in self._loss_types},'val': {l: 0.0 for l in self._loss_types}}
 
-    def init_global_losses(self, num_checkpoints):
-        self.global_losses = {'train': np.zeros(num_checkpoints)}
-            #{'train': {l: np.zeros(num_checkpoints) for l in self._loss_types},
-            #'val': {l: np.zeros(num_checkpoints) for l in self._loss_types}}
-
-    def update_global_losses(self, checkpoint):
-        for dset in ['train', 'val']:
-            self.global_losses[dset]['total'][checkpoint] = self.epoch_losses[dset]['total']
-            #for l in self._loss_types:
-            #    self.global_losses[dset][l][checkpoint] = self.epoch_losses[dset][l]
-    '''
-
-   #-B---- #was self.running_loss[dset]['total'] -> now self.running_loss[dset]
-   #saves loss every 100 batches
-   # was reset_running_loss_100
     def init_running_loss_100(self):
         self.running_loss_100 = {'train': 0.0}
 
@@ -141,11 +118,6 @@ class Trainer:
     def init_currentLoss(self):
         self.currentLoss = {'train': 0.0}
     
-   #-B----  
-
-   #TODO Add early stopping?
-
-   #TODO Add batch_to_color & batch_diff_to_color?
 
     def train(self):
         logging.info('\n===== STARTING TRAINING =====')
@@ -159,7 +131,6 @@ class Trainer:
 
         t = tqdm(range(0, TRAIN_NUM_EPOCHS))
         for e in t:
-        #while i < MAX_TRAIN_ITERS:
             self.init_running_loss()
             self.init_running_loss_100()
 
@@ -171,30 +142,19 @@ class Trainer:
                 ###
                 sample, sample_rec = self.forward(batch)
 
-                #-B----
-                #save running loss 100 and reset it
                 if (b+1) % TRAIN_SAVE_LOSS_EVERY_X_BATCHES == 0:
                     mean_loss = self.running_loss_100['train'] / TRAIN_SAVE_LOSS_EVERY_X_BATCHES
-                    self.global_losses_100['train'][counter_100] = mean_loss                       #e*len(self.dataloader) + b
+                    self.global_losses_100['train'][counter_100] = mean_loss                       
                     self.tensorboard_train.add_scalar(f"loss_per_{TRAIN_SAVE_LOSS_EVERY_X_BATCHES} batches", mean_loss, counter_100)
                     self.init_running_loss_100()
                     counter_100 +=1
 
-                    '''
-                    np.savetxt(f"original-batch-train", sample.numpy())
-                    self.batch_to_color(sample, f"original-batch-train")
-                    np.savetxt(f"reconstructed-batch-train", sample_rec.detach().numpy())
-                    self.batch_to_color(sample_rec.detach(), f"reconstructed-batch-train")
-                    self.batch_diff_to_color(sample, sample_rec.detach(), 'train')
-                    '''
                 if e < 1:
-                    #self.tensorboard_first_epoch.add_scalar(f"loss in first epoch", self.currentLoss, b)
                     self.tensorboard_first_epoch_train.add_scalar(f"loss in first epoch TRAIN", self.currentLoss, b)
                 '''
                 if b == 0:
                     break
                 '''
-                #-B----
 
             # save the train loss of the whole epoch
             self.logB(e, 'train')
@@ -205,13 +165,7 @@ class Trainer:
             for b, batch in enumerate(tqdm(self.val_dataloader, desc = 'Val Batches')):
                 # In forward NN also calcs & saves the loss 
                 sample_v, sample_rec_v = self.forward(batch)
-                ''' 
-                np.savetxt(f"original-batch-val", sample_v.numpy())
-                self.batch_to_color(sample_v, f"original-batch-val")
-                np.savetxt(f"reconstructed-batch-val", sample_rec_v.detach().numpy())
-                self.batch_to_color(sample_rec_v.detach(), f"reconstructed-batch-val")
-                self.batch_diff_to_color(sample_v, sample_rec_v.detach(), 'val')
-                '''
+                
                 if e < 1:
                     self.tensorboard_first_epoch_val.add_scalar(f"loss in first epoch VAL", self.currentLoss, b)
                 '''
@@ -242,7 +196,7 @@ class Trainer:
 
     def forward(self, batch):
         batch = batch.float()
-        if self.cuda == True and self.device.type == 'cuda':     #batch = batch.to(self.device)
+        if self.cuda == True and self.device.type == 'cuda':     
             batch = batch.cuda()
 
         _is_training = self.model.network.training
@@ -261,8 +215,6 @@ class Trainer:
         if self.model.network.training:
             self.running_loss_100[dset] += loss.item()
             loss.backward()
-            #self.model.optim.step()
-            #self.model.optim.zero_grad()
             self.model.optim_basis.step()
             self.model.optim_basis.zero_grad()
 
@@ -326,50 +278,10 @@ class Trainer:
             self.running_loss[dset] = 0.0
             if self.tensorboard_val:
                 self.tensorboard_val.add_scalar(tag = f'loss_per_epoch', scalar_value = val_losses, global_step = e)
-    
-    #TODO delete? does it get used somewhere
-    def logO(self, i, num_train_iters, t):
-
-        def get_mean_losses(dset):
-            try:
-                iters = (num_train_iters if dset == 'train'
-                         else len(self.val_dataloader))
-            except TypeError:
-                iters = 1
-            return self.epoch_losses[dset] / iters
-
-        def stringify(losses):
-            return ' '.join(['{}: {:.2f}'.format(loss.upper(), val)
-                             for (loss, val) in losses.items()
-                             if loss != 'total'])
-
-        def to_tensorboard(dset, losses):
-            for (loss, val) in losses.items():
-                self.tensorboard.add_scalar(
-                    '{}_{}_loss'.format(dset, loss), val, i)
-        #-B---- TODO delete 
-        a = 'Pappe'
-        assert a == 'Pappe', 'We ended up in original log in train()'
-        #-B----
-        tr_losses = get_mean_losses('train')
-        val_losses = get_mean_losses('val')
-
-        # build string to print out
-        string = '[{}/{}] TLoss: {:.4f}, VLoss: {:.4f} ({:.2f}s)'.format(
-            i, MAX_TRAIN_ITERS, tr_losses['total'], val_losses['total'], t)
-        string += '\n\t train ' + stringify(tr_losses)
-        if val_losses['total'] > 0.00:
-            string += '\n\t val ' + stringify(val_losses)
-        logging.info(string)
-
-        if self.tensorboard:
-            to_tensorboard('train', tr_losses)
-            if val_losses['total'] > 0.00:
-                to_tensorboard('val', val_losses)
 
 
 args = get_parser().parse_args()
-run_identifier = f"SyBa_{args.hz}Hz_{args.signal_type}_ETRA_FIFA_EMVIC_adaptedPreprocessDVAincl" #datetime.now().strftime('%m%d-%H%M')
+run_identifier = f"SyBa_{args.hz}Hz_{args.signal_type}_ETRA_FIFA_EMVIC" 
 setup_logging(args, run_identifier)
 print_settings()
 

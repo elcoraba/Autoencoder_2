@@ -40,7 +40,7 @@ class SignalDataset(Dataset):
         self.corpora = corpora
 
         assert args.hz > 0
-        self.hz = args.hz       #TODO wieso?
+        self.hz = args.hz       
         self.viewing_time = args.viewing_time
         self.num_gaze_points = int(self.hz * self.viewing_time)
         self.train_set, self.val_set, self.test_set = [], [], []
@@ -52,8 +52,6 @@ class SignalDataset(Dataset):
             corpus.load_data(is_adv = self.is_adv)
             corpus_samples = ['{}|{}'.format(corpus_name, i)
                               for i in range(len(corpus.data))]
-              
-            #print(corpus.data) # (7772, 1000, 3)
 
             if not args.slice_time_windows or kwargs.get('load_to_memory'):
                 # here when evaluator is loaded
@@ -116,19 +114,11 @@ class SignalDataset(Dataset):
     def __getitem__(self, i):       
         corpus, idx = self.train_set[i].split('|')
         data = self.corpora[corpus].data
-        #print('data[0]', data[int(idx)]) # [[2.65e-02 4.05e-02 1.00e+03] ...
 
         if type(data) == pd.DataFrame:
             assert False, 'data.py - if type(data) == pd.DataFrame, need to include x y vs label'
-            #TODO
-            #print('##################################')
-            #print(data.iloc[int(idx)][self.input_column])
-            #print(data.iloc[int(idx)][self.input_column][:,:-1])
-            #print(data.iloc[int(idx)][self.input_column][:,-1])
-            signal = data.iloc[int(idx)][self.input_column]
         # when loading data for batches: EMVIC, FIFA and ETRA
         else:  # saved time slices from corpus.py - iter_slice_chunks()
-            #signal = data[int(idx)]
             # x & y values
             signal = data[int(idx)][:,:-1]  # all but last column
             # Herz Value
@@ -137,7 +127,6 @@ class SignalDataset(Dataset):
                 signal = self.normalize_sample(signal)
        
         return signal.T, labelHz.T
-        ##return signal.T, randomSR# TODO: , Herz -> astype(long) -> sind Kategorien -> direkt in CEL reingeben
 
     def __len__(self):
         return len(self.train_set)

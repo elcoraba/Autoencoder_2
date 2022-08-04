@@ -24,9 +24,9 @@ class TCNAutoencoder(nn.Module):
 
         self.decoder = CausalDecoder(
             args, *DECODER_PARAMS, self.latent_size)
-        #-B---
+        
         self.adversary_decoder = AdversaryDecoder(args)
-        #-B---
+        
 
         self.bottleneck_fns = nn.ModuleDict(
             {'1': self.get_bottleneck_fns(self.encoder.out_dim)})

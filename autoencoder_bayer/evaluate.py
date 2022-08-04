@@ -29,22 +29,18 @@ class RepresentationEvaluator:
     def __init__(self, tasks, classifiers='all', is_adv = False, args=None, **kwargs):
         logging.info('\n---------- Initializing evaluator ----------')
 
-        #self.save_tsne_plot = args.save_tsne_plot
         self.scatterplot_dims = 2
         self.slice_time_windows = args.slice_time_windows
         self.viewing_time = kwargs.get('viewing_time') or args.viewing_time
         self.batch_size = args.batch_size if args.batch_size < 256 else 256
         self.tasks = tasks
-        self.scorers = ['accuracy']  # f1_micro
+        self.scorers = ['accuracy']  
         if classifiers == 'all':
             self.classifiers = list(CLASSIFIER_PARAMS.values())
         else:
             self.classifiers = [CLASSIFIER_PARAMS[c] for c in classifiers]
         self.is_adv = is_adv
-
-        ##B
         self.acc_z_0_8 = args.accuracy_calc_with_z_08
-        ##B
 
         # evaluate while training; use model passed in by trainer
         if 'model' in kwargs:
@@ -72,29 +68,11 @@ class RepresentationEvaluator:
             self.feature_type_idxs = self._build_representation_index_ranges()
             self.fi_df = pd.DataFrame()
             self.dataset = self.init_dataset(args)
-        '''
-        # evaluate using PCA features on raw data
-        elif args.pca_components > 0:
-            self.pca_components = args.pca_components
-            self._caller = 'main'
-            self.model = None
-            self.representation_name = 'evaluate-pca-{}'.format(
-                args.pca_components)
-            self.signal_types = [args.signal_type]
-            self.dataset = self.init_dataset(args)
 
-        elif 'supervised' in kwargs['representation_name']:
-            self.representation_name = kwargs['representation_name']
-            self.signal_types = kwargs['signal_types']
-            self.dataset = self.init_dataset(args)
-        '''
         # will store each corpus' info into a unified self.df.
         # this will hold each trial's representation
         self.df = pd.DataFrame(columns=['corpus', 'subj', 'stim', 'task'])
         self.tensorboard = None
-        #self.tensorboard = (SummaryWriter(
-        #    'tensorboard_evals/{}'.format(self.representation_name))
-        #    if args.tensorboard else None)
 
         self.cuda = args.cuda
         self.device = device('cuda' if cuda.is_available() else 'cpu')
@@ -146,7 +124,7 @@ class RepresentationEvaluator:
 
             datasets[signal_type] = SignalDataset(corpora = corpora, args = args,
                                                   # caller='evaluator',
-                                                  #is_adv = True,          # = self.is_adv? #for now, no different sampling rates in evaluation, though need to vary that later to see, how adv performs with differnet s.r. as this shouldn't make any difference, when the adversary did the right Job
+                                                  #is_adv = True,          # = self.is_adv? #for now, no different sampling rates in evaluation
                                                   load_to_memory=True,
                                                   **kwargs)
         return datasets
@@ -195,17 +173,12 @@ class RepresentationEvaluator:
 
         self.df['z'] = self.df.apply(
             lambda x: np.concatenate([x[col] for col in z_cols]),
-            axis=1) #bs 2 128 -> bs 2 102
+            axis=1) 
         logging.info('Done. Final representation shape: {}'.format(
             self.df['z'].iloc[0].shape))
 
         if log_stats:
             self._log_z_stats(e)
-
-        # for analysis
-        # tsne_plot_fifa(self.df)
-        # tsne_plot_etra(self.df)
-        # tsne_plot_corpus(self.df)
 
     def get_autoencoder_representations(self, network, x):
         if len(x.shape) > 2:
@@ -225,7 +198,7 @@ class RepresentationEvaluator:
                 else:
                     batch = Tensor(x[batch_size * s: batch_size * (s + 1)])
                 if self.cuda and self.device.type == 'cuda':
-                    reps.extend(network.encode(batch.cuda()                                        #batch.cuda()
+                    reps.extend(network.encode(batch.cuda()                                        
                                            )[0].cpu().detach().numpy())
                 else:
                     reps.extend(network.encode(batch                                        
@@ -245,12 +218,9 @@ class RepresentationEvaluator:
             # accuracy of the tasks with the 80% of z, where the protected attribute (sampling rate)
             # was excluded
             if self.acc_z_0_8 and self.is_adv:
-                ###----------
-                # x = Series -> x.shape = (480,), x[0].shape = (128,)
-                #----------------
-                x_nparray = np.array(x.values.tolist())     #(480, 128)
-                x_tensor = torch.Tensor(x_nparray)          #torch.Size([480, 128])
-                z2, z1 = torch.split(x_tensor, int(x_tensor.shape[1]/2), dim = 1) # 2 x torch.Size([480, 64])
+                x_nparray = np.array(x.values.tolist())     
+                x_tensor = torch.Tensor(x_nparray)          
+                z2, z1 = torch.split(x_tensor, int(x_tensor.shape[1]/2), dim = 1) 
                 #----------from train_adv
                 # z = [z2, z1]
                 # Divide 64 features of z2 and z1 -> 128 features in 80% bzw 20%
@@ -263,8 +233,6 @@ class RepresentationEvaluator:
                 #----------
                 # use just the z_0.8 as input for the accuracy calculation
                 z_series = pd.Series(z.numpy().tolist())
-                # len(z_series[0]) = 102
-                # z_series[0] is now list not np array any more
                 x = z_series
                 ###----------
 
